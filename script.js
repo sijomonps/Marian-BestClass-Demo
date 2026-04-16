@@ -4,6 +4,11 @@ const roleConfig = {
     navLabel: "My Dashboard",
     heading: "Student Dashboard"
   },
+  leader: {
+    label: "Class Leader",
+    navLabel: "Leader Dashboard",
+    heading: "Class Leader Dashboard"
+  },
   teacher: {
     label: "Class Teacher",
     navLabel: "Review Queue",
@@ -36,8 +41,6 @@ const students = [
   { id: 5, name: "Nisha Iyer", className: "BA English C", department: "English" },
   { id: 6, name: "Vikram Patel", className: "BA English C", department: "English" }
 ];
-// Track selected department for evaluator
-state.selectedDepartment = null;
 function getDepartments() {
   return Array.from(new Set(students.map(s => s.department)));
 }
@@ -133,7 +136,10 @@ const state = {
   currentStudentId: 1,
   selectedAcademicYear: academicYears[0],
   editingCriteriaId: null,
-  showSubmissionForm: false
+  showSubmissionForm: false,
+  showLeaderSubmissionForm: false,
+  editingSubmissionId: null,
+  selectedDepartment: null
 };
 
 const ui = {};
@@ -223,6 +229,8 @@ function handleRoleSwitch(event) {
   state.activePage = "dashboard";
   state.editingCriteriaId = null;
   state.showSubmissionForm = false;
+  state.showLeaderSubmissionForm = false;
+  state.editingSubmissionId = null;
 
   renderSidebar();
   renderPage();
@@ -235,6 +243,8 @@ function handleLogout() {
   state.activePage = "dashboard";
   state.editingCriteriaId = null;
   state.showSubmissionForm = false;
+  state.showLeaderSubmissionForm = false;
+  state.editingSubmissionId = null;
   ui.sidebar.classList.remove("open");
   renderAuthState();
   showToast("Logged out from prototype session.", "info");
@@ -291,6 +301,11 @@ function renderPage() {
 
   if (state.currentRole === "student") {
     ui.pageContent.innerHTML = renderStudentDashboard();
+    return;
+  }
+
+  if (state.currentRole === "leader") {
+    ui.pageContent.innerHTML = renderLeaderDashboard();
     return;
   }
 
@@ -394,6 +409,89 @@ function renderStudentDashboard() {
     "</div>" +
     "<div class=\"button-row full-span\">" +
     "<button type=\"submit\" class=\"btn primary\">Submit</button>" +
+    "</div>" +
+    "</form>" +
+    "</section>"
+  );
+}
+
+function renderLeaderDashboard() {
+  const allSubmissions = [...submissions].sort((a, b) => b.id - a.id);
+  const editingSubmission = state.editingSubmissionId ? submissions.find(item => item.id === state.editingSubmissionId) : null;
+
+  const tableRows = allSubmissions.length
+    ? allSubmissions
+        .map((item) => {
+          const student = getStudentById(item.studentId);
+          const itemCriteria = getCriteriaById(item.criteriaId);
+          return (
+            "<tr>" +
+            "<td>" + escapeHtml(student ? student.name : "Unknown") + "</td>" +
+            "<td>" + escapeHtml(itemCriteria ? itemCriteria.name : "Removed Criteria") + "</td>" +
+            "<td>" + escapeHtml(item.description) + "</td>" +
+            "<td><span class=\"status-pill " + getStatusClass(item.status) + "\">" + escapeHtml(item.status) + "</span></td>" +
+            "<td>" + (Number.isFinite(item.marks) ? item.marks : "-") + "</td>" +
+            "<td>" +
+            "<div class=\"button-row\">" +
+            "<button type=\"button\" class=\"btn ghost\" data-leader-edit=\"" + item.id + "\">Edit</button>" +
+            "<button type=\"button\" class=\"btn danger\" data-leader-delete=\"" + item.id + "\">Delete</button>" +
+            "</div>" +
+            "</td>" +
+            "</tr>"
+          );
+        })
+        .join("")
+    : "<tr><td colspan=\"6\" class=\"empty-row\">No submissions found.</td></tr>";
+
+  const studentOptions = students
+    .map((item) => "<option value=\"" + item.id + "\"" + (editingSubmission && editingSubmission.studentId === item.id ? " selected" : "") + ">" + escapeHtml(item.name) + "</option>")
+    .join("");
+
+  const criteriaOptions = criteria
+    .map((item) => "<option value=\"" + item.id + "\"" + (editingSubmission && editingSubmission.criteriaId === item.id ? " selected" : "") + ">" + escapeHtml(item.name) + " (Max " + item.maxMarks + ")</option>")
+    .join("");
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div>" +
+    "<h1>Class Leader Dashboard</h1>" +
+    "<p class=\"muted\">Manage (CRUD) all student submissions here.</p>" +
+    "</div>" +
+    "</section>" +
+
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\">" +
+    "<h3>All Submissions</h3>" +
+    "<button type=\"button\" id=\"toggle-leader-form\" class=\"btn primary\">" +
+    (state.showLeaderSubmissionForm ? "Close Form" : "Add Submission") +
+    "</button>" +
+    "</div>" +
+    "<div class=\"table-wrap\">" +
+    "<table>" +
+    "<thead><tr><th>Student</th><th>Criteria</th><th>Description</th><th>Status</th><th>Marks</th><th>Actions</th></tr></thead>" +
+    "<tbody>" + tableRows + "</tbody>" +
+    "</table>" +
+    "</div>" +
+    "</section>" +
+
+    "<section class=\"panel " + (state.showLeaderSubmissionForm ? "" : "hidden") + "\">" +
+    "<h3>" + (editingSubmission ? "Edit Submission" : "New Submission") + "</h3>" +
+    "<form id=\"leader-submission-form\" class=\"stack-form two-col\">" +
+    "<div class=\"field\">" +
+    "<label for=\"leader-student\">Select Student</label>" +
+    "<select id=\"leader-student\" name=\"studentId\" required>" + studentOptions + "</select>" +
+    "</div>" +
+    "<div class=\"field\">" +
+    "<label for=\"leader-criteria\">Select Criteria</label>" +
+    "<select id=\"leader-criteria\" name=\"criteriaId\" required>" + criteriaOptions + "</select>" +
+    "</div>" +
+    "<div class=\"field full-span\">" +
+    "<label for=\"leader-description\">Description</label>" +
+    "<textarea id=\"leader-description\" name=\"description\" placeholder=\"Describe the activity\" required>" + escapeAttribute(editingSubmission ? editingSubmission.description : "") + "</textarea>" +
+    "</div>" +
+    "<div class=\"button-row full-span\">" +
+    "<button type=\"submit\" class=\"btn primary\">Save Submission</button>" +
+    (editingSubmission ? "<button type=\"button\" id=\"cancel-leader-edit\" class=\"btn ghost\">Cancel Edit</button>" : "") +
     "</div>" +
     "</form>" +
     "</section>"
@@ -672,6 +770,40 @@ function handlePageClick(event) {
       renderPage();
       return;
     }
+
+  const toggleLeaderFormBtn = event.target.closest("#toggle-leader-form");
+  if (toggleLeaderFormBtn) {
+    state.showLeaderSubmissionForm = !state.showLeaderSubmissionForm;
+    if (!state.showLeaderSubmissionForm) {
+      state.editingSubmissionId = null;
+    }
+    renderPage();
+    return;
+  }
+
+  const leaderEditBtn = event.target.closest("button[data-leader-edit]");
+  if (leaderEditBtn) {
+    state.editingSubmissionId = Number(leaderEditBtn.dataset.leaderEdit);
+    state.showLeaderSubmissionForm = true;
+    renderPage();
+    return;
+  }
+
+  const leaderDeleteBtn = event.target.closest("button[data-leader-delete]");
+  if (leaderDeleteBtn) {
+    const subId = Number(leaderDeleteBtn.dataset.leaderDelete);
+    deleteLeaderSubmission(subId);
+    return;
+  }
+
+  const cancelLeaderEditBtn = event.target.closest("#cancel-leader-edit");
+  if (cancelLeaderEditBtn) {
+    state.editingSubmissionId = null;
+    state.showLeaderSubmissionForm = false;
+    renderPage();
+    return;
+  }
+
   const toggleSubmissionButton = event.target.closest("#toggle-submission-form");
   if (toggleSubmissionButton) {
     state.showSubmissionForm = !state.showSubmissionForm;
@@ -713,6 +845,12 @@ function handlePageSubmit(event) {
   if (form.id === "student-submission-form") {
     event.preventDefault();
     submitStudentSubmission(form);
+    return;
+  }
+
+  if (form.id === "leader-submission-form") {
+    event.preventDefault();
+    submitLeaderSubmission(form);
     return;
   }
 
@@ -770,6 +908,72 @@ function submitStudentSubmission(form) {
   form.reset();
   renderPage();
   showToast("Submission added successfully.", "success");
+}
+
+function submitLeaderSubmission(form) {
+  if (!criteria.length) {
+    showToast("No criteria available.", "warning");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const studentId = Number(formData.get("studentId"));
+  const criteriaId = Number(formData.get("criteriaId"));
+  const description = String(formData.get("description") || "").trim();
+
+  if (!studentId || !criteriaId || !description) {
+    showToast("Please provide all required fields.", "error");
+    return;
+  }
+
+  if (state.editingSubmissionId) {
+    const submission = submissions.find(item => item.id === state.editingSubmissionId);
+    if (!submission) {
+      showToast("Submission not found.", "error");
+      return;
+    }
+    submission.studentId = studentId;
+    submission.criteriaId = criteriaId;
+    submission.description = description;
+
+    state.editingSubmissionId = null;
+    state.showLeaderSubmissionForm = false;
+    showToast("Submission updated successfully.", "success");
+  } else {
+    const nextId = submissions.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1;
+    submissions.unshift({
+      id: nextId,
+      studentId: studentId,
+      criteriaId: criteriaId,
+      description: description,
+      status: "Pending",
+      remarks: "",
+      marks: null,
+      proof: "leader_proof.pdf"
+    });
+    showToast("Submission added successfully.", "success");
+  }
+  
+  state.showLeaderSubmissionForm = false;
+  renderPage();
+}
+
+function deleteLeaderSubmission(submissionId) {
+  const oldCount = submissions.length;
+  submissions = submissions.filter(item => item.id !== submissionId);
+
+  if (submissions.length === oldCount) {
+    showToast("Submission not found.", "error");
+    return;
+  }
+
+  if (state.editingSubmissionId === submissionId) {
+    state.editingSubmissionId = null;
+    state.showLeaderSubmissionForm = false;
+  }
+
+  showToast("Submission deleted successfully.", "success");
+  renderPage();
 }
 
 function updateTeacherStatus(submissionId, nextStatus) {
