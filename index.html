@@ -7,6 +7,9 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <noscript>
+    <div style="background: #c84545; color: #fff; padding: 1em; text-align: center; font-weight: bold;">JavaScript is required for this demo to work. Please enable JavaScript in your browser.</div>
+  </noscript>
   <div id="login-screen" class="login-screen">
     <div class="login-card">
       <p class="eyebrow">College Activity Tracker</p>
@@ -16,12 +19,12 @@
       <form id="login-form" class="stack-form">
         <div class="field">
           <label for="login-email">Email</label>
-          <input id="login-email" name="email" type="email" placeholder="name@college.edu" required />
+          <input id="login-email" name="email" type="email" placeholder="name@college.edu" />
         </div>
 
         <div class="field">
           <label for="login-password">Password</label>
-          <input id="login-password" name="password" type="password" placeholder="Enter password" required />
+          <input id="login-password" name="password" type="password" placeholder="Enter password" />
         </div>
 
         <div class="field">
@@ -68,7 +71,7 @@
         </button>
 
         <div class="topbar-title">
-          <h2 id="topbar-heading">Dashboard</h2>
+          <h2 id="topbar-heading">Dashboard.</h2>
           <p id="topbar-subheading">Role-based prototype mode</p>
         </div>
 
