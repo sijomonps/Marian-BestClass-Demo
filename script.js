@@ -4,6 +4,11 @@ const roleConfig = {
     navLabel: "My Dashboard",
     heading: "Student Dashboard"
   },
+  leader: {
+    label: "Class Leader",
+    navLabel: "Leader Dashboard",
+    heading: "Class Leader Dashboard"
+  },
   teacher: {
     label: "Class Teacher",
     navLabel: "Review Queue",
@@ -28,20 +33,21 @@ const roleConfig = {
 
 const academicYears = ["2025-2026", "2024-2025", "2023-2024"];
 
-const evaluatorDepartmentRules = [
-  { match: "bsc cs", department: "Computer Science" },
-  { match: "bcom", department: "Commerce" },
-  { match: "ba english", department: "English" }
-];
-
 const students = [
-  { id: 1, name: "Anika Sharma", className: "BSc CS A" },
-  { id: 2, name: "Rahul Menon", className: "BSc CS A" },
-  { id: 3, name: "Sara Joseph", className: "BCom B" },
-  { id: 4, name: "Arjun Das", className: "BCom B" },
-  { id: 5, name: "Nisha Iyer", className: "BA English C" },
-  { id: 6, name: "Vikram Patel", className: "BA English C" }
+  { id: 1, name: "Anika Sharma", className: "BSc CS A", department: "Computer Science" },
+  { id: 2, name: "Rahul Menon", className: "BSc CS A", department: "Computer Science" },
+  { id: 3, name: "Sara Joseph", className: "BCom B", department: "Commerce" },
+  { id: 4, name: "Arjun Das", className: "BCom B", department: "Commerce" },
+  { id: 5, name: "Nisha Iyer", className: "BA English C", department: "English" },
+  { id: 6, name: "Vikram Patel", className: "BA English C", department: "English" }
 ];
+function getDepartments() {
+  return Array.from(new Set(students.map(s => s.department)));
+}
+
+function getStudentsByDepartment(dept) {
+  return students.filter(s => s.department === dept);
+}
 
 let criteria = [
   { id: 1, name: "Sports", maxMarks: 10 },
@@ -131,9 +137,9 @@ const state = {
   selectedAcademicYear: academicYears[0],
   editingCriteriaId: null,
   showSubmissionForm: false,
-  evaluatorView: "departments",
-  evaluatorDepartment: "",
-  evaluatorStudentId: null
+  showLeaderSubmissionForm: false,
+  editingSubmissionId: null,
+  selectedDepartment: null
 };
 
 const ui = {};
@@ -141,27 +147,9 @@ const ui = {};
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  applyPageContext();
   cacheElements();
   bindEvents();
   renderAuthState();
-}
-
-function applyPageContext() {
-  const body = document.body;
-
-  if (body && body.dataset.initialRole) {
-    state.loggedIn = true;
-    state.currentRole = body.dataset.initialRole;
-  }
-
-  if (body && body.dataset.initialPage) {
-    state.activePage = body.dataset.initialPage;
-  }
-
-  if (body && body.dataset.initialStudentId) {
-    state.currentStudentId = Number(body.dataset.initialStudentId) || state.currentStudentId;
-  }
 }
 
 function cacheElements() {
@@ -216,15 +204,20 @@ function handleLogin(event) {
 
   const formData = new FormData(ui.loginForm);
   const email = String(formData.get("email") || "").trim();
-  const password = String(formData.get("password") || "").trim();
   const role = String(formData.get("role") || "student");
 
-  // Allow login even if fields are empty (demo mode)
+  // Debug: log login attempt
+  console.log("Login attempt", { email, role });
+
+  // For demo: allow any email/password, just require a role
+  if (!role) {
+    showToast("Please select a role.", "error");
+    return;
+  }
 
   state.loggedIn = true;
   state.activePage = "dashboard";
   state.currentRole = role;
-  resetEvaluatorFlow();
   ui.loginForm.reset();
 
   renderAuthState();
@@ -236,7 +229,8 @@ function handleRoleSwitch(event) {
   state.activePage = "dashboard";
   state.editingCriteriaId = null;
   state.showSubmissionForm = false;
-  resetEvaluatorFlow();
+  state.showLeaderSubmissionForm = false;
+  state.editingSubmissionId = null;
 
   renderSidebar();
   renderPage();
@@ -249,16 +243,11 @@ function handleLogout() {
   state.activePage = "dashboard";
   state.editingCriteriaId = null;
   state.showSubmissionForm = false;
-  resetEvaluatorFlow();
+  state.showLeaderSubmissionForm = false;
+  state.editingSubmissionId = null;
   ui.sidebar.classList.remove("open");
   renderAuthState();
   showToast("Logged out from prototype session.", "info");
-}
-
-function resetEvaluatorFlow() {
-  state.evaluatorView = "departments";
-  state.evaluatorDepartment = "";
-  state.evaluatorStudentId = null;
 }
 
 function renderAuthState() {
@@ -315,13 +304,17 @@ function renderPage() {
     return;
   }
 
+  if (state.currentRole === "leader") {
+    ui.pageContent.innerHTML = renderLeaderDashboard();
+    return;
+  }
+
   if (state.currentRole === "teacher") {
     ui.pageContent.innerHTML = renderTeacherDashboard();
     return;
   }
 
   if (state.currentRole === "evaluator") {
-    ui.topbarSubheading.textContent = getEvaluatorSubheading();
     ui.pageContent.innerHTML = renderEvaluatorDashboard();
     return;
   }
@@ -422,6 +415,89 @@ function renderStudentDashboard() {
   );
 }
 
+function renderLeaderDashboard() {
+  const allSubmissions = [...submissions].sort((a, b) => b.id - a.id);
+  const editingSubmission = state.editingSubmissionId ? submissions.find(item => item.id === state.editingSubmissionId) : null;
+
+  const tableRows = allSubmissions.length
+    ? allSubmissions
+        .map((item) => {
+          const student = getStudentById(item.studentId);
+          const itemCriteria = getCriteriaById(item.criteriaId);
+          return (
+            "<tr>" +
+            "<td>" + escapeHtml(student ? student.name : "Unknown") + "</td>" +
+            "<td>" + escapeHtml(itemCriteria ? itemCriteria.name : "Removed Criteria") + "</td>" +
+            "<td>" + escapeHtml(item.description) + "</td>" +
+            "<td><span class=\"status-pill " + getStatusClass(item.status) + "\">" + escapeHtml(item.status) + "</span></td>" +
+            "<td>" + (Number.isFinite(item.marks) ? item.marks : "-") + "</td>" +
+            "<td>" +
+            "<div class=\"button-row\">" +
+            "<button type=\"button\" class=\"btn ghost\" data-leader-edit=\"" + item.id + "\">Edit</button>" +
+            "<button type=\"button\" class=\"btn danger\" data-leader-delete=\"" + item.id + "\">Delete</button>" +
+            "</div>" +
+            "</td>" +
+            "</tr>"
+          );
+        })
+        .join("")
+    : "<tr><td colspan=\"6\" class=\"empty-row\">No submissions found.</td></tr>";
+
+  const studentOptions = students
+    .map((item) => "<option value=\"" + item.id + "\"" + (editingSubmission && editingSubmission.studentId === item.id ? " selected" : "") + ">" + escapeHtml(item.name) + "</option>")
+    .join("");
+
+  const criteriaOptions = criteria
+    .map((item) => "<option value=\"" + item.id + "\"" + (editingSubmission && editingSubmission.criteriaId === item.id ? " selected" : "") + ">" + escapeHtml(item.name) + " (Max " + item.maxMarks + ")</option>")
+    .join("");
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div>" +
+    "<h1>Class Leader Dashboard</h1>" +
+    "<p class=\"muted\">Manage (CRUD) all student submissions here.</p>" +
+    "</div>" +
+    "</section>" +
+
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\">" +
+    "<h3>All Submissions</h3>" +
+    "<button type=\"button\" id=\"toggle-leader-form\" class=\"btn primary\">" +
+    (state.showLeaderSubmissionForm ? "Close Form" : "Add Submission") +
+    "</button>" +
+    "</div>" +
+    "<div class=\"table-wrap\">" +
+    "<table>" +
+    "<thead><tr><th>Student</th><th>Criteria</th><th>Description</th><th>Status</th><th>Marks</th><th>Actions</th></tr></thead>" +
+    "<tbody>" + tableRows + "</tbody>" +
+    "</table>" +
+    "</div>" +
+    "</section>" +
+
+    "<section class=\"panel " + (state.showLeaderSubmissionForm ? "" : "hidden") + "\">" +
+    "<h3>" + (editingSubmission ? "Edit Submission" : "New Submission") + "</h3>" +
+    "<form id=\"leader-submission-form\" class=\"stack-form two-col\">" +
+    "<div class=\"field\">" +
+    "<label for=\"leader-student\">Select Student</label>" +
+    "<select id=\"leader-student\" name=\"studentId\" required>" + studentOptions + "</select>" +
+    "</div>" +
+    "<div class=\"field\">" +
+    "<label for=\"leader-criteria\">Select Criteria</label>" +
+    "<select id=\"leader-criteria\" name=\"criteriaId\" required>" + criteriaOptions + "</select>" +
+    "</div>" +
+    "<div class=\"field full-span\">" +
+    "<label for=\"leader-description\">Description</label>" +
+    "<textarea id=\"leader-description\" name=\"description\" placeholder=\"Describe the activity\" required>" + escapeAttribute(editingSubmission ? editingSubmission.description : "") + "</textarea>" +
+    "</div>" +
+    "<div class=\"button-row full-span\">" +
+    "<button type=\"submit\" class=\"btn primary\">Save Submission</button>" +
+    (editingSubmission ? "<button type=\"button\" id=\"cancel-leader-edit\" class=\"btn ghost\">Cancel Edit</button>" : "") +
+    "</div>" +
+    "</form>" +
+    "</section>"
+  );
+}
+
 function renderTeacherDashboard() {
   const reviewQueue = [...submissions].sort((a, b) => b.id - a.id);
 
@@ -472,171 +548,67 @@ function renderTeacherDashboard() {
 }
 
 function renderEvaluatorDashboard() {
-  if (state.evaluatorView === "students") {
-    return renderEvaluatorStudentsView();
+  // Department selection UI
+  const departments = getDepartments();
+  let deptButtons = departments.map(dept => {
+    const active = state.selectedDepartment === dept ? 'active' : '';
+    return `<button type="button" class="btn ghost ${active}" data-eval-dept="${dept}">${escapeHtml(dept)}</button>`;
+  }).join(' ');
+
+  let content = `<section class="section-header">
+    <div>
+      <h1>Evaluation Team Dashboard</h1>
+      <p class="muted">Select a department to view students and assign marks.</p>
+      <div class="button-row">${deptButtons}</div>
+    </div>
+  </section>`;
+
+  if (!state.selectedDepartment) {
+    content += '<section class="panel"><p class="empty-state">Select a department to view students.</p></section>';
+    return content;
   }
 
-  if (state.evaluatorView === "details") {
-    return renderEvaluatorStudentDetailsView();
+  // Show students in selected department
+  const studentsInDept = getStudentsByDepartment(state.selectedDepartment);
+  if (!studentsInDept.length) {
+    content += '<section class="panel"><p class="empty-state">No students in this department.</p></section>';
+    return content;
   }
 
-  return renderEvaluatorDepartmentsView();
-}
-
-function getEvaluatorSubheading() {
-  if (state.evaluatorView === "students") {
-    return "Department: " + state.evaluatorDepartment;
-  }
-
-  if (state.evaluatorView === "details") {
-    const selectedStudent = getStudentById(state.evaluatorStudentId);
-    return selectedStudent ? "Verifying " + selectedStudent.name : "Student Verification";
-  }
-
-  return "Select a department to begin";
-}
-
-function renderEvaluatorDepartmentsView() {
-  const summaryMap = new Map();
-
-  students.forEach((student) => {
-    const departmentName = getDepartmentByClassName(student.className);
-    const bucket = summaryMap.get(departmentName) || {
-      departmentName: departmentName,
-      studentCount: 0,
-      readyCount: 0
-    };
-
-    bucket.studentCount += 1;
-    if (getApprovedSubmissionsByStudent(student.id).length > 0) {
-      bucket.readyCount += 1;
+  // For each student, show their approved submissions for marking
+  studentsInDept.forEach(student => {
+    const studentSubs = submissions.filter(item => item.studentId === student.id && item.status === "Approved");
+    if (!studentSubs.length) {
+      content += `<section class="panel"><h3>${escapeHtml(student.name)} (${escapeHtml(student.className)})</h3><p class="empty-state">No approved submissions for this student.</p></section>`;
+      return;
     }
-
-    summaryMap.set(departmentName, bucket);
+    content += `<section class="panel"><h3>${escapeHtml(student.name)} (${escapeHtml(student.className)})</h3>`;
+    studentSubs.forEach(item => {
+      const itemCriteria = getCriteriaById(item.criteriaId);
+      const maxMarks = itemCriteria ? itemCriteria.maxMarks : 0;
+      const currentMarks = Number.isFinite(item.marks) ? item.marks : "";
+      content += `<div class="submission-card">
+        <div class="submission-head">
+          <h4>${escapeHtml(itemCriteria ? itemCriteria.name : "Removed Criteria")}</h4>
+          <span class="status-pill status-approved">Approved</span>
+        </div>
+        <div class="meta-list">
+          <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
+          <p><strong>Proof:</strong> ${escapeHtml(item.proof || "-")}</p>
+          <p><strong>Max Marks:</strong> ${maxMarks}</p>
+        </div>
+        <form class="stack-form" data-mark-form="${item.id}">
+          <div class="field">
+            <label>Enter Marks</label>
+            <input name="marks" type="number" min="0" max="${maxMarks}" step="0.5" required value="${currentMarks}" />
+          </div>
+          <button type="submit" class="btn primary">Save Marks</button>
+        </form>
+      </div>`;
+    });
+    content += '</section>';
   });
-
-  const departmentCards = Array.from(summaryMap.values())
-    .sort((a, b) => a.departmentName.localeCompare(b.departmentName))
-    .map((item) => {
-      return (
-        '<article class="department-card flex-row">' +
-          '<div class="dept-col dept-name"><span>' + escapeHtml(item.departmentName) + '</span></div>' +
-          '<div class="dept-col dept-stats"><span>' + item.studentCount + ' students | ' + item.readyCount + ' ready for evaluation</span></div>' +
-          '<div class="dept-col dept-action"><button type="button" class="btn primary" data-evaluator-department="' + escapeAttribute(item.departmentName) + '">Select</button></div>' +
-        '</article>'
-      );
-    })
-    .join("");
-
-  return (
-    '<section class="department-grid" style="margin-top:2rem">' + departmentCards + '</section>'
-  );
-}
-
-function renderEvaluatorStudentsView() {
-  if (!state.evaluatorDepartment) {
-    return renderEvaluatorDepartmentsView();
-  }
-
-  const departmentStudents = students
-    .filter((student) => getDepartmentByClassName(student.className) === state.evaluatorDepartment)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const rows = departmentStudents.length
-    ? departmentStudents
-        .map((student) => {
-          const approvedItems = getApprovedSubmissionsByStudent(student.id);
-          const totalMarks = approvedItems.reduce((sum, item) => sum + safeMark(item.marks), 0);
-          return (
-            "<tr>" +
-            "<td>" + escapeHtml(student.name) + "</td>" +
-            "<td>" + escapeHtml(student.className) + "</td>" +
-            "<td>" + approvedItems.length + "</td>" +
-            "<td>" + totalMarks.toFixed(1) + "</td>" +
-            "<td><button type=\"button\" class=\"btn ghost\" data-evaluator-student=\"" + student.id + "\">View Details</button></td>" +
-            "</tr>"
-          );
-        })
-        .join("")
-    : "<tr><td colspan=\"5\" class=\"empty-row\">No students found for this department.</td></tr>";
-
-  return (
-    "<section class=\"section-header\">" +
-    "<div>" +
-    "<h1>" + escapeHtml(state.evaluatorDepartment) + "</h1>" +
-    "<p class=\"muted\">Step 2: Select a student to view submissions and verify details.</p>" +
-    "</div>" +
-    "<button type=\"button\" class=\"btn ghost\" data-evaluator-back=\"departments\">Back to Departments</button>" +
-    "</section>" +
-    "<section class=\"panel\">" +
-    "<div class=\"table-wrap\">" +
-    "<table>" +
-    "<thead><tr><th>Student</th><th>Class</th><th>Approved Items</th><th>Total Marks</th><th>Action</th></tr></thead>" +
-    "<tbody>" + rows + "</tbody>" +
-    "</table>" +
-    "</div>" +
-    "</section>"
-  );
-}
-
-function renderEvaluatorStudentDetailsView() {
-  if (!state.evaluatorDepartment) {
-    return renderEvaluatorDepartmentsView();
-  }
-
-  const student = getStudentById(state.evaluatorStudentId);
-  if (!student) {
-    return renderEvaluatorStudentsView();
-  }
-
-  const studentSubmissions = getApprovedSubmissionsByStudent(student.id).sort((a, b) => b.id - a.id);
-
-  const cards = studentSubmissions.length
-    ? studentSubmissions
-        .map((item) => {
-          const itemCriteria = getCriteriaById(item.criteriaId);
-          const maxMarks = itemCriteria ? itemCriteria.maxMarks : 0;
-          const currentMarks = Number.isFinite(item.marks) ? item.marks : "";
-          const verified = Boolean(item.evaluatorVerified);
-
-          return (
-            "<article class=\"submission-card\">" +
-            "<div class=\"submission-head\">" +
-            "<h4>" + escapeHtml(itemCriteria ? itemCriteria.name : "Removed Criteria") + "</h4>" +
-            "<span class=\"status-pill " + (verified ? "status-approved" : "status-pending") + "\">" + (verified ? "Verified" : "Pending Verification") + "</span>" +
-            "</div>" +
-            "<div class=\"meta-list\">" +
-            "<p><strong>Description:</strong> " + escapeHtml(item.description) + "</p>" +
-            "<p><strong>Proof:</strong> " + escapeHtml(item.proof || "-") + "</p>" +
-            "<p><strong>Teacher Remark:</strong> " + escapeHtml(item.remarks || "-") + "</p>" +
-            "<p><strong>Max Marks:</strong> " + maxMarks + "</p>" +
-            "</div>" +
-            "<div class=\"button-row\">" +
-            "<button type=\"button\" class=\"btn " + (verified ? "ghost" : "success") + "\" data-evaluator-verify=\"" + item.id + "\">" + (verified ? "Verified" : "Verify Details") + "</button>" +
-            "</div>" +
-            "<form class=\"stack-form\" data-mark-form=\"" + item.id + "\">" +
-            "<div class=\"field\">" +
-            "<label>Enter Marks</label>" +
-            "<input name=\"marks\" type=\"number\" min=\"0\" max=\"" + maxMarks + "\" step=\"0.5\" required value=\"" + currentMarks + "\" />" +
-            "</div>" +
-            "<button type=\"submit\" class=\"btn primary\">Save Marks</button>" +
-            "</form>" +
-            "</article>"
-          );
-        })
-        .join("")
-    : "<div class=\"panel\"><p class=\"empty-state\">No approved submissions are available for this student.</p></div>";
-
-  return (
-    "<section class=\"section-header\">" +
-    "<div>" +
-    "<h1>" + escapeHtml(student.name) + "</h1>" +
-    "<p class=\"muted\">Step 3: View proof, verify details, and save marks for approved activities.</p>" +
-    "</div>" +
-    "<button type=\"button\" class=\"btn ghost\" data-evaluator-back=\"students\">Back to Students</button>" +
-    "</section>" +
-    "<section class=\"submission-grid\">" + cards + "</section>"
-  );
+  return content;
 }
 
 function renderAdminDashboard() {
@@ -791,39 +763,44 @@ function renderRankingDashboard() {
 }
 
 function handlePageClick(event) {
-  const departmentButton = event.target.closest("button[data-evaluator-department]");
-  if (departmentButton) {
-    state.evaluatorDepartment = departmentButton.dataset.evaluatorDepartment || "";
-    state.evaluatorStudentId = null;
-    state.evaluatorView = "students";
-    renderPage();
-    return;
-  }
+    // Evaluator department selection
+    const evalDeptBtn = event.target.closest("button[data-eval-dept]");
+    if (evalDeptBtn) {
+      state.selectedDepartment = evalDeptBtn.dataset.evalDept;
+      renderPage();
+      return;
+    }
 
-  const studentButton = event.target.closest("button[data-evaluator-student]");
-  if (studentButton) {
-    state.evaluatorStudentId = Number(studentButton.dataset.evaluatorStudent);
-    state.evaluatorView = "details";
-    renderPage();
-    return;
-  }
-
-  const evaluatorBackButton = event.target.closest("button[data-evaluator-back]");
-  if (evaluatorBackButton) {
-    const nextView = evaluatorBackButton.dataset.evaluatorBack;
-    if (nextView === "departments") {
-      resetEvaluatorFlow();
-    } else {
-      state.evaluatorView = "students";
-      state.evaluatorStudentId = null;
+  const toggleLeaderFormBtn = event.target.closest("#toggle-leader-form");
+  if (toggleLeaderFormBtn) {
+    state.showLeaderSubmissionForm = !state.showLeaderSubmissionForm;
+    if (!state.showLeaderSubmissionForm) {
+      state.editingSubmissionId = null;
     }
     renderPage();
     return;
   }
 
-  const verifyButton = event.target.closest("button[data-evaluator-verify]");
-  if (verifyButton) {
-    toggleEvaluatorVerification(Number(verifyButton.dataset.evaluatorVerify));
+  const leaderEditBtn = event.target.closest("button[data-leader-edit]");
+  if (leaderEditBtn) {
+    state.editingSubmissionId = Number(leaderEditBtn.dataset.leaderEdit);
+    state.showLeaderSubmissionForm = true;
+    renderPage();
+    return;
+  }
+
+  const leaderDeleteBtn = event.target.closest("button[data-leader-delete]");
+  if (leaderDeleteBtn) {
+    const subId = Number(leaderDeleteBtn.dataset.leaderDelete);
+    deleteLeaderSubmission(subId);
+    return;
+  }
+
+  const cancelLeaderEditBtn = event.target.closest("#cancel-leader-edit");
+  if (cancelLeaderEditBtn) {
+    state.editingSubmissionId = null;
+    state.showLeaderSubmissionForm = false;
+    renderPage();
     return;
   }
 
@@ -868,6 +845,12 @@ function handlePageSubmit(event) {
   if (form.id === "student-submission-form") {
     event.preventDefault();
     submitStudentSubmission(form);
+    return;
+  }
+
+  if (form.id === "leader-submission-form") {
+    event.preventDefault();
+    submitLeaderSubmission(form);
     return;
   }
 
@@ -918,14 +901,79 @@ function submitStudentSubmission(form) {
     status: "Pending",
     remarks: "",
     marks: null,
-    proof: proofName,
-    evaluatorVerified: false
+    proof: proofName
   });
 
   state.showSubmissionForm = false;
   form.reset();
   renderPage();
   showToast("Submission added successfully.", "success");
+}
+
+function submitLeaderSubmission(form) {
+  if (!criteria.length) {
+    showToast("No criteria available.", "warning");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const studentId = Number(formData.get("studentId"));
+  const criteriaId = Number(formData.get("criteriaId"));
+  const description = String(formData.get("description") || "").trim();
+
+  if (!studentId || !criteriaId || !description) {
+    showToast("Please provide all required fields.", "error");
+    return;
+  }
+
+  if (state.editingSubmissionId) {
+    const submission = submissions.find(item => item.id === state.editingSubmissionId);
+    if (!submission) {
+      showToast("Submission not found.", "error");
+      return;
+    }
+    submission.studentId = studentId;
+    submission.criteriaId = criteriaId;
+    submission.description = description;
+
+    state.editingSubmissionId = null;
+    state.showLeaderSubmissionForm = false;
+    showToast("Submission updated successfully.", "success");
+  } else {
+    const nextId = submissions.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1;
+    submissions.unshift({
+      id: nextId,
+      studentId: studentId,
+      criteriaId: criteriaId,
+      description: description,
+      status: "Pending",
+      remarks: "",
+      marks: null,
+      proof: "leader_proof.pdf"
+    });
+    showToast("Submission added successfully.", "success");
+  }
+  
+  state.showLeaderSubmissionForm = false;
+  renderPage();
+}
+
+function deleteLeaderSubmission(submissionId) {
+  const oldCount = submissions.length;
+  submissions = submissions.filter(item => item.id !== submissionId);
+
+  if (submissions.length === oldCount) {
+    showToast("Submission not found.", "error");
+    return;
+  }
+
+  if (state.editingSubmissionId === submissionId) {
+    state.editingSubmissionId = null;
+    state.showLeaderSubmissionForm = false;
+  }
+
+  showToast("Submission deleted successfully.", "success");
+  renderPage();
 }
 
 function updateTeacherStatus(submissionId, nextStatus) {
@@ -943,7 +991,6 @@ function updateTeacherStatus(submissionId, nextStatus) {
 
   if (nextStatus !== "Approved") {
     submission.marks = null;
-    submission.evaluatorVerified = false;
   }
 
   renderPage();
@@ -980,28 +1027,6 @@ function saveEvaluatorMarks(form) {
 
   submission.marks = marks;
   showToast("Marks saved for submission " + submissionId + ".", "success");
-  renderPage();
-}
-
-function toggleEvaluatorVerification(submissionId) {
-  const submission = submissions.find((item) => item.id === submissionId);
-  if (!submission) {
-    showToast("Submission not found.", "error");
-    return;
-  }
-
-  if (submission.status !== "Approved") {
-    showToast("Only approved submissions can be verified.", "warning");
-    return;
-  }
-
-  submission.evaluatorVerified = !Boolean(submission.evaluatorVerified);
-  showToast(
-    submission.evaluatorVerified
-      ? "Submission " + submissionId + " verified by evaluator."
-      : "Submission " + submissionId + " moved back to pending verification.",
-    "success"
-  );
   renderPage();
 }
 
@@ -1133,16 +1158,6 @@ function calculateGrade(normalizedScore) {
 
 function getStudentById(id) {
   return students.find((item) => item.id === id);
-}
-
-function getDepartmentByClassName(className) {
-  const normalizedClass = String(className || "").toLowerCase();
-  const matchedRule = evaluatorDepartmentRules.find((rule) => normalizedClass.indexOf(rule.match) > -1);
-  return matchedRule ? matchedRule.department : "General";
-}
-
-function getApprovedSubmissionsByStudent(studentId) {
-  return submissions.filter((item) => item.studentId === studentId && item.status === "Approved");
 }
 
 function getCriteriaById(id) {
