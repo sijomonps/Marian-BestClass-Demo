@@ -29,13 +29,22 @@ const roleConfig = {
 const academicYears = ["2025-2026", "2024-2025", "2023-2024"];
 
 const students = [
-  { id: 1, name: "Anika Sharma", className: "BSc CS A" },
-  { id: 2, name: "Rahul Menon", className: "BSc CS A" },
-  { id: 3, name: "Sara Joseph", className: "BCom B" },
-  { id: 4, name: "Arjun Das", className: "BCom B" },
-  { id: 5, name: "Nisha Iyer", className: "BA English C" },
-  { id: 6, name: "Vikram Patel", className: "BA English C" }
+  { id: 1, name: "Anika Sharma", className: "BSc CS A", department: "Computer Science" },
+  { id: 2, name: "Rahul Menon", className: "BSc CS A", department: "Computer Science" },
+  { id: 3, name: "Sara Joseph", className: "BCom B", department: "Commerce" },
+  { id: 4, name: "Arjun Das", className: "BCom B", department: "Commerce" },
+  { id: 5, name: "Nisha Iyer", className: "BA English C", department: "English" },
+  { id: 6, name: "Vikram Patel", className: "BA English C", department: "English" }
 ];
+// Track selected department for evaluator
+state.selectedDepartment = null;
+function getDepartments() {
+  return Array.from(new Set(students.map(s => s.department)));
+}
+
+function getStudentsByDepartment(dept) {
+  return students.filter(s => s.department === dept);
+}
 
 let criteria = [
   { id: 1, name: "Sports", maxMarks: 10 },
@@ -189,11 +198,14 @@ function handleLogin(event) {
 
   const formData = new FormData(ui.loginForm);
   const email = String(formData.get("email") || "").trim();
-  const password = String(formData.get("password") || "").trim();
   const role = String(formData.get("role") || "student");
 
-  if (!email || !password || !role) {
-    showToast("Please enter email, password, and select a role.", "error");
+  // Debug: log login attempt
+  console.log("Login attempt", { email, role });
+
+  // For demo: allow any email/password, just require a role
+  if (!role) {
+    showToast("Please select a role.", "error");
     return;
   }
 
@@ -438,51 +450,67 @@ function renderTeacherDashboard() {
 }
 
 function renderEvaluatorDashboard() {
-  const approvedSubmissions = submissions
-    .filter((item) => item.status === "Approved")
-    .sort((a, b) => b.id - a.id);
+  // Department selection UI
+  const departments = getDepartments();
+  let deptButtons = departments.map(dept => {
+    const active = state.selectedDepartment === dept ? 'active' : '';
+    return `<button type="button" class="btn ghost ${active}" data-eval-dept="${dept}">${escapeHtml(dept)}</button>`;
+  }).join(' ');
 
-  const cards = approvedSubmissions.length
-    ? approvedSubmissions
-        .map((item) => {
-          const student = getStudentById(item.studentId);
-          const itemCriteria = getCriteriaById(item.criteriaId);
-          const maxMarks = itemCriteria ? itemCriteria.maxMarks : 0;
-          const currentMarks = Number.isFinite(item.marks) ? item.marks : "";
+  let content = `<section class="section-header">
+    <div>
+      <h1>Evaluation Team Dashboard</h1>
+      <p class="muted">Select a department to view students and assign marks.</p>
+      <div class="button-row">${deptButtons}</div>
+    </div>
+  </section>`;
 
-          return (
-            "<article class=\"submission-card\">" +
-            "<div class=\"submission-head\">" +
-            "<h4>" + escapeHtml(student ? student.name : "Unknown Student") + "</h4>" +
-            "<span class=\"status-pill status-approved\">Approved</span>" +
-            "</div>" +
-            "<div class=\"meta-list\">" +
-            "<p><strong>Criteria:</strong> " + escapeHtml(itemCriteria ? itemCriteria.name : "Removed Criteria") + "</p>" +
-            "<p><strong>Class:</strong> " + escapeHtml(student ? student.className : "-") + "</p>" +
-            "<p><strong>Max Marks:</strong> " + maxMarks + "</p>" +
-            "</div>" +
-            "<form class=\"stack-form\" data-mark-form=\"" + item.id + "\">" +
-            "<div class=\"field\">" +
-            "<label>Enter Marks</label>" +
-            "<input name=\"marks\" type=\"number\" min=\"0\" max=\"" + maxMarks + "\" step=\"0.5\" required value=\"" + currentMarks + "\" />" +
-            "</div>" +
-            "<button type=\"submit\" class=\"btn primary\">Save Marks</button>" +
-            "</form>" +
-            "</article>"
-          );
-        })
-        .join("")
-    : "<div class=\"panel\"><p class=\"empty-state\">No approved submissions are ready for evaluation.</p></div>";
+  if (!state.selectedDepartment) {
+    content += '<section class="panel"><p class="empty-state">Select a department to view students.</p></section>';
+    return content;
+  }
 
-  return (
-    "<section class=\"section-header\">" +
-    "<div>" +
-    "<h1>Evaluation Team Dashboard</h1>" +
-    "<p class=\"muted\">Only approved submissions are listed for mark entry.</p>" +
-    "</div>" +
-    "</section>" +
-    "<section class=\"submission-grid\">" + cards + "</section>"
-  );
+  // Show students in selected department
+  const studentsInDept = getStudentsByDepartment(state.selectedDepartment);
+  if (!studentsInDept.length) {
+    content += '<section class="panel"><p class="empty-state">No students in this department.</p></section>';
+    return content;
+  }
+
+  // For each student, show their approved submissions for marking
+  studentsInDept.forEach(student => {
+    const studentSubs = submissions.filter(item => item.studentId === student.id && item.status === "Approved");
+    if (!studentSubs.length) {
+      content += `<section class="panel"><h3>${escapeHtml(student.name)} (${escapeHtml(student.className)})</h3><p class="empty-state">No approved submissions for this student.</p></section>`;
+      return;
+    }
+    content += `<section class="panel"><h3>${escapeHtml(student.name)} (${escapeHtml(student.className)})</h3>`;
+    studentSubs.forEach(item => {
+      const itemCriteria = getCriteriaById(item.criteriaId);
+      const maxMarks = itemCriteria ? itemCriteria.maxMarks : 0;
+      const currentMarks = Number.isFinite(item.marks) ? item.marks : "";
+      content += `<div class="submission-card">
+        <div class="submission-head">
+          <h4>${escapeHtml(itemCriteria ? itemCriteria.name : "Removed Criteria")}</h4>
+          <span class="status-pill status-approved">Approved</span>
+        </div>
+        <div class="meta-list">
+          <p><strong>Description:</strong> ${escapeHtml(item.description)}</p>
+          <p><strong>Proof:</strong> ${escapeHtml(item.proof || "-")}</p>
+          <p><strong>Max Marks:</strong> ${maxMarks}</p>
+        </div>
+        <form class="stack-form" data-mark-form="${item.id}">
+          <div class="field">
+            <label>Enter Marks</label>
+            <input name="marks" type="number" min="0" max="${maxMarks}" step="0.5" required value="${currentMarks}" />
+          </div>
+          <button type="submit" class="btn primary">Save Marks</button>
+        </form>
+      </div>`;
+    });
+    content += '</section>';
+  });
+  return content;
 }
 
 function renderAdminDashboard() {
@@ -637,6 +665,13 @@ function renderRankingDashboard() {
 }
 
 function handlePageClick(event) {
+    // Evaluator department selection
+    const evalDeptBtn = event.target.closest("button[data-eval-dept]");
+    if (evalDeptBtn) {
+      state.selectedDepartment = evalDeptBtn.dataset.evalDept;
+      renderPage();
+      return;
+    }
   const toggleSubmissionButton = event.target.closest("#toggle-submission-form");
   if (toggleSubmissionButton) {
     state.showSubmissionForm = !state.showSubmissionForm;
