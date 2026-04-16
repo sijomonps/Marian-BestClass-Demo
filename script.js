@@ -140,11 +140,11 @@ function init() {
 function cacheElements() {
   ui.loginScreen = document.getElementById("login-screen");
   ui.loginForm = document.getElementById("login-form");
+  ui.loginRole = document.getElementById("login-role");
   ui.appShell = document.getElementById("app-shell");
   ui.sidebar = document.getElementById("sidebar");
   ui.sidebarNav = document.getElementById("sidebar-nav");
   ui.sidebarRoleLabel = document.getElementById("sidebar-role-label");
-  ui.roleSwitcher = document.getElementById("role-switcher");
   ui.menuToggle = document.getElementById("menu-toggle");
   ui.logoutBtn = document.getElementById("logout-btn");
   ui.topbarHeading = document.getElementById("topbar-heading");
@@ -155,7 +155,6 @@ function cacheElements() {
 
 function bindEvents() {
   ui.loginForm.addEventListener("submit", handleLogin);
-  ui.roleSwitcher.addEventListener("change", handleRoleSwitch);
   ui.logoutBtn.addEventListener("click", handleLogout);
 
   ui.menuToggle.addEventListener("click", () => {
@@ -191,15 +190,16 @@ function handleLogin(event) {
   const formData = new FormData(ui.loginForm);
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "").trim();
+  const role = String(formData.get("role") || "student");
 
-  if (!email || !password) {
-    showToast("Please enter email and password.", "error");
+  if (!email || !password || !role) {
+    showToast("Please enter email, password, and select a role.", "error");
     return;
   }
 
   state.loggedIn = true;
   state.activePage = "dashboard";
-  state.currentRole = ui.roleSwitcher.value;
+  state.currentRole = role;
   ui.loginForm.reset();
 
   renderAuthState();
@@ -237,7 +237,6 @@ function renderAuthState() {
 
   ui.loginScreen.classList.add("hidden");
   ui.appShell.classList.remove("hidden");
-  ui.roleSwitcher.value = state.currentRole;
 
   renderSidebar();
   renderPage();

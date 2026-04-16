@@ -24,6 +24,17 @@
           <input id="login-password" name="password" type="password" placeholder="Enter password" required />
         </div>
 
+        <div class="field">
+          <label for="login-role">Role</label>
+          <select id="login-role" name="role" required>
+            <option value="student">Student</option>
+            <option value="teacher">Class Teacher</option>
+            <option value="evaluator">Evaluator</option>
+            <option value="admin">Admin</option>
+            <option value="hod">HOD / IQAC</option>
+          </select>
+        </div>
+
         <button type="submit" class="btn primary full">Login</button>
       </form>
     </div>
@@ -62,17 +73,6 @@
         </div>
 
         <div class="topbar-controls">
-          <div class="field compact">
-            <label for="role-switcher">Role</label>
-            <select id="role-switcher">
-              <option value="student">Student</option>
-              <option value="teacher">Class Teacher</option>
-              <option value="evaluator">Evaluator</option>
-              <option value="admin">Admin</option>
-              <option value="hod">HOD / IQAC</option>
-            </select>
-          </div>
-
           <button id="logout-btn" type="button" class="btn ghost">Logout</button>
         </div>
       </header>
