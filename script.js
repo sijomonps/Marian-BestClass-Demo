@@ -511,13 +511,7 @@ function renderEvaluatorDepartmentsView() {
     .join("");
 
   return (
-    '<section class="section-header">' +
-      '<div>' +
-        '<h1>Evaluation Team Dashboard</h1>' +
-        '<p class="muted">Select a department next to begin</p>' +
-      '</div>' +
-    '</section>' +
-    '<section class="department-grid">' + departmentCards + '</section>'
+    '<section class="department-grid" style="margin-top:2rem">' + departmentCards + '</section>'
   );
 }
 
