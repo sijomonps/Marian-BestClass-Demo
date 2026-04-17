@@ -201,10 +201,7 @@ function handleLogin(event) {
   const password = String(formData.get("password") || "").trim();
   const role = String(formData.get("role") || "student");
 
-  if (!email || !password || !role) {
-    showToast("Please enter email, password, and select a role.", "error");
-    return;
-  }
+  // Allow login even if fields are empty (demo mode)
 
   state.loggedIn = true;
   state.activePage = "dashboard";
@@ -504,23 +501,23 @@ function renderEvaluatorDepartmentsView() {
     .sort((a, b) => a.departmentName.localeCompare(b.departmentName))
     .map((item) => {
       return (
-        "<article class=\"department-card\">" +
-        "<h3>" + escapeHtml(item.departmentName) + "</h3>" +
-        "<p class=\"muted\">" + item.studentCount + " students | " + item.readyCount + " ready for evaluation</p>" +
-        "<button type=\"button\" class=\"btn primary\" data-evaluator-department=\"" + escapeAttribute(item.departmentName) + "\">Select Department</button>" +
-        "</article>"
+        '<article class="department-card flex-row">' +
+          '<div class="dept-col dept-name"><span>' + escapeHtml(item.departmentName) + '</span></div>' +
+          '<div class="dept-col dept-stats"><span>' + item.studentCount + ' students | ' + item.readyCount + ' ready for evaluation</span></div>' +
+          '<div class="dept-col dept-action"><button type="button" class="btn primary" data-evaluator-department="' + escapeAttribute(item.departmentName) + '">Select</button></div>' +
+        '</article>'
       );
     })
     .join("");
 
   return (
-    "<section class=\"section-header\">" +
-    "<div>" +
-    "<h1>Evaluation Team Dashboard</h1>" +
-    "<p class=\"muted\">Step 1: Choose a department to continue to student verification.</p>" +
-    "</div>" +
-    "</section>" +
-    "<section class=\"department-grid\">" + departmentCards + "</section>"
+    '<section class="section-header">' +
+      '<div>' +
+        '<h1>Evaluation Team Dashboard</h1>' +
+        '<p class="muted">Select a department next to begin</p>' +
+      '</div>' +
+    '</section>' +
+    '<section class="department-grid">' + departmentCards + '</section>'
   );
 }
 
