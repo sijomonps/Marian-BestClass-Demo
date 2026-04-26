@@ -9,23 +9,13 @@
 <body>
   <div id="login-screen" class="login-screen">
     <div class="login-card">
-      <p class="eyebrow">College Activity Tracker</p>
-      <h1>Best Class Evaluation &amp; Verification System</h1>
-      <p class="muted">Prototype login for role-based dashboard flow. No real authentication is used.</p>
+      <p class="eyebrow">Marian College</p>
+      <h1>Best Class Evaluation System</h1>
+      <p class="muted">Select your role to continue into the platform.</p>
 
       <form id="login-form" class="stack-form">
         <div class="field">
-          <label for="login-email">Email</label>
-          <input id="login-email" name="email" type="email" placeholder="name@college.edu" />
-        </div>
-
-        <div class="field">
-          <label for="login-password">Password</label>
-          <input id="login-password" name="password" type="password" placeholder="Enter password" />
-        </div>
-
-        <div class="field">
-          <label for="login-role">Role</label>
+          <label for="login-role">Choose Role</label>
           <select id="login-role" name="role">
             <option value="student">Student</option>
             <option value="teacher">Class Teacher</option>
@@ -35,7 +25,7 @@
           </select>
         </div>
 
-        <button type="submit" class="btn primary full">Login</button>
+        <button type="submit" class="btn primary full">Enter Workspace</button>
       </form>
     </div>
   </div>
@@ -73,6 +63,7 @@
         </div>
 
         <div class="topbar-controls">
+          <span id="topbar-role-badge" class="role-badge">Student</span>
           <button id="logout-btn" type="button" class="btn ghost">Logout</button>
         </div>
       </header>
@@ -82,6 +73,19 @@
   </div>
 
   <div id="toast-container" class="toast-container"></div>
+
+  <div id="confirm-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+      <h3 id="confirm-title">Confirm Action</h3>
+      <p id="confirm-message" class="muted">Are you sure you want to continue?</p>
+      <div class="button-row">
+        <button id="confirm-cancel" type="button" class="btn ghost">Cancel</button>
+        <button id="confirm-accept" type="button" class="btn danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
