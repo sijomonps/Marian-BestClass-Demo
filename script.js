@@ -3,41 +3,41 @@ const roleConfig = {
     label: "Student",
     heading: "Student Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "DB" },
-      { page: "submit", label: "Submit Activity", icon: "SA" },
-      { page: "submissions", label: "My Submissions", icon: "MS" }
+      { page: "dashboard", label: "Dashboard", icon: "◉" },
+      { page: "submit", label: "Submit Activity", icon: "✦" },
+      { page: "submissions", label: "My Submissions", icon: "▦" }
     ]
   },
   teacher: {
     label: "Class Teacher",
     heading: "Teacher Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "DB" },
-      { page: "verification", label: "Verification", icon: "VR" }
+      { page: "dashboard", label: "Dashboard", icon: "◉" },
+      { page: "verification", label: "Verification", icon: "✓" }
     ]
   },
   evaluator: {
     label: "Evaluator",
     heading: "Evaluation Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "DB" },
-      { page: "evaluation", label: "Evaluation", icon: "EV" }
+      { page: "dashboard", label: "Dashboard", icon: "◉" },
+      { page: "evaluation", label: "Evaluation", icon: "◌" }
     ]
   },
   admin: {
     label: "Admin",
     heading: "Admin Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "DB" },
-      { page: "criteria", label: "Criteria Management", icon: "CM" }
+      { page: "dashboard", label: "Dashboard", icon: "◉" },
+      { page: "criteria", label: "Criteria Management", icon: "⚙" }
     ]
   },
   hod: {
     label: "HOD / IQAC",
     heading: "HOD / IQAC Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "DB" },
-      { page: "reports", label: "Reports", icon: "RP" }
+      { page: "dashboard", label: "Dashboard", icon: "◉" },
+      { page: "reports", label: "Reports", icon: "◨" }
     ]
   }
 };
@@ -176,6 +176,9 @@ function normalizeCriteriaType(type) {
   }
   if (normalized === "range") {
     return "range";
+  }
+  if (normalized === "negative") {
+    return "negative";
   }
   if (normalized === "boolean") {
     return "boolean";
@@ -377,21 +380,34 @@ function renderPage() {
 }
 
 function renderDashboardCards(metrics) {
+  const displayMax = Number.isFinite(metrics.maxScore) ? metrics.maxScore : 0;
+  const safeMax = Math.max(1, displayMax);
+  const scorePercent = Math.min(100, Math.max(0, (metrics.score / safeMax) * 100));
+
   const cards = [
-    { label: "Total Submissions", value: metrics.total },
-    { label: "Approved", value: metrics.approved },
-    { label: "Pending", value: metrics.pending },
-    { label: "Total Score", value: metrics.score.toFixed(1) }
+    { key: "total", icon: "◉", label: "Total Submissions", value: metrics.total },
+    { key: "approved", icon: "✓", label: "Approved", value: metrics.approved },
+    { key: "pending", icon: "◔", label: "Pending", value: metrics.pending },
+    {
+      key: "score",
+      icon: "◈",
+      label: "Total Score",
+      value:
+        "<div class=\"score-meta\"><p>Score: " + metrics.score.toFixed(1) + " / " + displayMax.toFixed(1) +
+        "</p><p>" + scorePercent.toFixed(1) + "%</p></div>" +
+        "<div class=\"progress-track\"><div class=\"progress-fill progress-score\" style=\"width:" + scorePercent.toFixed(1) + "%\"></div></div>"
+    }
   ];
 
   return (
     "<section class=\"cards-grid stats-grid\">" +
     cards
       .map((card) => {
+        const valueHtml = card.key === "score" ? card.value : "<h3>" + escapeHtml(card.value) + "</h3>";
         return (
-          "<article class=\"stat-card\">" +
-          "<p>" + escapeHtml(card.label) + "</p>" +
-          "<h3>" + escapeHtml(card.value) + "</h3>" +
+          "<article class=\"stat-card " + card.key + "\">" +
+          "<div class=\"stat-head\"><span class=\"stat-icon\">" + card.icon + "</span><p>" + escapeHtml(card.label) + "</p></div>" +
+          valueHtml +
           "</article>"
         );
       })
@@ -403,10 +419,10 @@ function renderDashboardCards(metrics) {
 function renderStatusProgress(title, counts) {
   const total = Math.max(1, counts.total);
   const rows = [
-    { key: "Approved", value: counts.approved },
-    { key: "Pending", value: counts.pending },
-    { key: "Rejected", value: counts.rejected },
-    { key: "Correction", value: counts.correction }
+    { key: "Approved", value: counts.approved, className: "progress-approved" },
+    { key: "Pending", value: counts.pending, className: "progress-pending" },
+    { key: "Rejected", value: counts.rejected, className: "progress-rejected" },
+    { key: "Correction", value: counts.correction, className: "progress-correction" }
   ];
 
   return (
@@ -418,13 +434,100 @@ function renderStatusProgress(title, counts) {
         const percent = (row.value / total) * 100;
         return (
           "<div class=\"progress-row\">" +
-          "<div class=\"progress-meta\"><span>" + escapeHtml(row.key) + "</span><span>" + row.value + "</span></div>" +
-          "<div class=\"progress-track\"><div class=\"progress-fill\" style=\"width:" + percent.toFixed(1) + "%\"></div></div>" +
+          "<div class=\"progress-meta\"><span>" + escapeHtml(row.key) + "</span><span>" + row.value + " | " + percent.toFixed(1) + "%</span></div>" +
+          "<div class=\"progress-track\"><div class=\"progress-fill " + row.className + "\" style=\"width:" + percent.toFixed(1) + "%\"></div></div>" +
           "</div>"
         );
       })
       .join("") +
     "</div>" +
+    "</section>"
+  );
+}
+
+function renderCategoryBreakdown(items, title) {
+  const categoryMap = new Map();
+
+  items.forEach((submission) => {
+    if (submission.status !== "Approved") {
+      return;
+    }
+
+    const criteriaItem = getCriteriaById(submission.criteriaId);
+    const categoryName = getCriteriaCategoryLabel(criteriaItem);
+    const current = categoryMap.get(categoryName) || {
+      category: categoryName,
+      count: 0,
+      score: 0
+    };
+
+    current.count += 1;
+    current.score += safeMark(getSubmissionEffectiveMarks(submission));
+    categoryMap.set(categoryName, current);
+  });
+
+  const rows = Array.from(categoryMap.values())
+    .sort((a, b) => b.score - a.score || a.category.localeCompare(b.category))
+    .slice(0, 8);
+
+  if (!rows.length) {
+    return (
+      "<section class=\"chart-card\">" +
+      "<h3>" + escapeHtml(title) + "</h3>" +
+      "<p class=\"empty-state\">No approved marks available yet.</p>" +
+      "</section>"
+    );
+  }
+
+  const maxScore = Math.max(1, ...rows.map((row) => Math.abs(row.score)));
+
+  return (
+    "<section class=\"chart-card\">" +
+    "<h3>" + escapeHtml(title) + "</h3>" +
+    "<div class=\"progress-list\">" +
+    rows
+      .map((row) => {
+        const width = Math.min(100, (Math.abs(row.score) / maxScore) * 100);
+        const fillClass = row.score < 0 ? "progress-rejected" : "progress-score";
+        return (
+          "<div class=\"progress-row\">" +
+          "<div class=\"progress-meta\"><span>" + escapeHtml(row.category) + "</span><span>" + row.count + " approved | " + row.score.toFixed(1) + " marks</span></div>" +
+          "<div class=\"progress-track\"><div class=\"progress-fill " + fillClass + "\" style=\"width:" + width.toFixed(1) + "%\"></div></div>" +
+          "</div>"
+        );
+      })
+      .join("") +
+    "</div>" +
+    "</section>"
+  );
+}
+
+function renderRecentActivityPanel(items, title, limit) {
+  const recentItems = [...items].sort((a, b) => b.id - a.id).slice(0, limit || 5);
+
+  const rows = recentItems.length
+    ? recentItems
+        .map((submission) => {
+          const student = getStudentById(submission.studentId);
+          const criteriaItem = getCriteriaById(submission.criteriaId);
+          const marks = getSubmissionEffectiveMarks(submission);
+          return (
+            "<tr>" +
+            "<td>" + escapeHtml(student ? student.name : "Unknown Student") + "</td>" +
+            "<td>" + escapeHtml(getCriteriaCategoryLabel(criteriaItem)) + "</td>" +
+            "<td>" + escapeHtml(criteriaItem ? criteriaItem.title : "Removed Item") + "</td>" +
+            "<td><span class=\"status-pill " + getStatusClass(submission.status) + "\">" + escapeHtml(submission.status) + "</span></td>" +
+            "<td>" + marks.toFixed(1) + "</td>" +
+            "</tr>"
+          );
+        })
+        .join("")
+    : "<tr><td colspan=\"5\" class=\"empty-row\">No submissions available</td></tr>";
+
+  return (
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\"><h3>" + escapeHtml(title) + "</h3></div>" +
+    "<div class=\"table-wrap compact-table\"><table><thead><tr><th>Student</th><th>Category</th><th>Item</th><th>Status</th><th>Marks</th></tr></thead><tbody>" + rows + "</tbody></table></div>" +
     "</section>"
   );
 }
@@ -439,11 +542,13 @@ function renderStudentDashboard() {
     "</section>" +
     renderDashboardCards(metrics) +
     renderStatusProgress("Submission Distribution", metrics) +
+    renderCategoryBreakdown(studentSubmissions, "Approved Score by Category") +
+    renderRecentActivityPanel(studentSubmissions, "Recent Submissions", 4) +
     "<section class=\"panel\">" +
     "<div class=\"panel-head\"><h3>Quick Actions</h3></div>" +
     "<div class=\"button-row\">" +
-    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"submit\">Submit New Activity</button>" +
-    "<button type=\"button\" class=\"btn ghost\" data-page-jump=\"submissions\">View My Submissions</button>" +
+    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"submit\">✦ Submit New Activity</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-page-jump=\"submissions\">▦ View My Submissions</button>" +
     "</div>" +
     "</section>"
   );
@@ -465,7 +570,8 @@ function renderStudentSubmitPage() {
 
   const selectedCategory = getCategoryById(state.selectedSubmissionCategoryId) || categories[0];
   const categoryItems = selectedCategory.items || [];
-  if (!state.selectedSubmissionItemId || !getCriteriaById(state.selectedSubmissionItemId)) {
+  const selectedItemInCategory = categoryItems.some((item) => Number(item.id) === Number(state.selectedSubmissionItemId));
+  if (!state.selectedSubmissionItemId || !selectedItemInCategory) {
     state.selectedSubmissionItemId = categoryItems[0] ? categoryItems[0].id : "";
   }
 
@@ -481,11 +587,12 @@ function renderStudentSubmitPage() {
   const itemOptions = categoryItems
     .map((item) => {
       const selected = item.id === state.selectedSubmissionItemId ? " selected" : "";
-      return "<option value=\"" + item.id + "\"" + selected + ">" + escapeHtml(item.title) + " (" + escapeHtml(getCriteriaTypeLabel(item.type)) + ")</option>";
+      return "<option value=\"" + item.id + "\"" + selected + ">" + escapeHtml(item.title) + " (" + escapeHtml(getCriteriaRuleSummary(item)) + ")</option>";
     })
     .join("");
 
   const dynamicInput = selectedItem ? renderStudentEvidenceInput(selectedItem) : "";
+  const criteriaRule = selectedItem ? renderCriteriaRuleCard(selectedItem) : "";
 
   return (
     "<section class=\"section-header\">" +
@@ -495,18 +602,32 @@ function renderStudentSubmitPage() {
     "<form id=\"student-submission-form\" class=\"stack-form two-col\">" +
     "<div class=\"field\"><label for=\"submission-category\">Category</label><select id=\"submission-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div>" +
     "<div class=\"field\"><label for=\"submission-criteria\">Item</label><select id=\"submission-criteria\" name=\"criteriaId\" required>" + itemOptions + "</select></div>" +
+    criteriaRule +
     dynamicInput +
     "<div class=\"field\"><label for=\"submission-proof\">Upload Proof</label><input id=\"submission-proof\" name=\"proof\" type=\"file\" required /></div>" +
     "<div class=\"field full-span\"><label for=\"submission-description\">Description</label><textarea id=\"submission-description\" name=\"description\" placeholder=\"Describe the activity\" required></textarea></div>" +
-    "<div class=\"button-row full-span\"><button type=\"submit\" class=\"btn primary\">Submit</button></div>" +
+    "<div class=\"button-row full-span\"><button type=\"submit\" class=\"btn primary\">⬆ Submit</button></div>" +
     "</form>" +
     "</section>"
+  );
+}
+
+function renderCriteriaRuleCard(criteriaItem) {
+  return (
+    "<div class=\"criteria-rule-card full-span\">" +
+    "<div><span class=\"criteria-chip\">" + escapeHtml(getCriteriaTypeLabel(criteriaItem.type)) + "</span><h3>" + escapeHtml(criteriaItem.title) + "</h3></div>" +
+    "<p>" + escapeHtml(getCriteriaRuleSummary(criteriaItem)) + "</p>" +
+    "</div>"
   );
 }
 
 function renderStudentEvidenceInput(criteriaItem) {
   if (criteriaItem.type === "count") {
     return "<div class=\"field\"><label for=\"submission-count\">Count</label><input id=\"submission-count\" name=\"countValue\" type=\"number\" min=\"1\" step=\"1\" required /><p class=\"muted\">Marks = count x " + criteriaItem.marks + "</p></div>";
+  }
+
+  if (criteriaItem.type === "negative") {
+    return "<div class=\"field\"><label for=\"submission-count\">Count</label><input id=\"submission-count\" name=\"countValue\" type=\"number\" min=\"1\" step=\"1\" required /><p class=\"muted\">Penalty = count x " + criteriaItem.marks + "</p></div>";
   }
 
   if (criteriaItem.type === "range") {
@@ -540,6 +661,7 @@ function renderStudentSubmissionsPage() {
             "<tr>" +
             "<td>" + escapeHtml(getCriteriaCategoryLabel(criteriaItem)) + "</td>" +
             "<td>" + escapeHtml(criteriaItem ? criteriaItem.title : "Removed Item") + "</td>" +
+            "<td>" + escapeHtml(formatEvidenceSummary(item, criteriaItem)) + "</td>" +
             "<td>" + escapeHtml(item.description) + "</td>" +
             "<td><span class=\"status-pill " + getStatusClass(item.status) + "\">" + escapeHtml(item.status) + "</span></td>" +
             "<td>" + preview.toFixed(1) + "</td>" +
@@ -548,7 +670,7 @@ function renderStudentSubmissionsPage() {
           );
         })
         .join("")
-    : "<tr><td colspan=\"6\" class=\"empty-row\">No submissions yet</td></tr>";
+    : "<tr><td colspan=\"7\" class=\"empty-row\">No submissions yet</td></tr>";
 
   return (
     "<section class=\"section-header\">" +
@@ -556,7 +678,7 @@ function renderStudentSubmissionsPage() {
     "</section>" +
     "<section class=\"panel\">" +
     "<div class=\"table-wrap\">" +
-    "<table><thead><tr><th>Category</th><th>Item</th><th>Description</th><th>Status</th><th>Rule Marks</th><th>Final Marks</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+    "<table><thead><tr><th>◈ Category</th><th>◌ Item</th><th>▣ Evidence</th><th>✎ Description</th><th>◔ Status</th><th>Rule Marks</th><th>Final Marks</th></tr></thead><tbody>" + rows + "</tbody></table>" +
     "</div>" +
     "</section>"
   );
@@ -571,9 +693,10 @@ function renderTeacherDashboard() {
     "</section>" +
     renderDashboardCards(metrics) +
     renderStatusProgress("Verification Queue", metrics) +
+    renderRecentActivityPanel(submissions, "Latest Verification Items", 5) +
     "<section class=\"panel\">" +
     "<div class=\"button-row\">" +
-    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"verification\">Open Verification Desk</button>" +
+    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"verification\">✓ Open Verification Desk</button>" +
     "</div>" +
     "</section>"
   );
@@ -597,15 +720,16 @@ function renderTeacherVerificationPage() {
             "<p><strong>Category:</strong> " + escapeHtml(getCriteriaCategoryLabel(criteriaItem)) + "</p>" +
             "<p><strong>Item:</strong> " + escapeHtml(criteriaItem ? criteriaItem.title : "Removed Item") + "</p>" +
             "<p><strong>Rule Type:</strong> " + escapeHtml(getCriteriaTypeLabel(criteriaItem ? criteriaItem.type : "fixed")) + "</p>" +
+            "<p><strong>Evidence:</strong> " + escapeHtml(formatEvidenceSummary(item, criteriaItem)) + "</p>" +
             "<p><strong>Rule Marks Preview:</strong> " + previewMarks.toFixed(1) + "</p>" +
             "<p><strong>Description:</strong> " + escapeHtml(item.description) + "</p>" +
             "<p><strong>Proof:</strong> " + escapeHtml(item.proof || "-") + "</p>" +
             "</div>" +
             "<div class=\"field\"><label>Teacher Remark</label><input type=\"text\" data-remark-input=\"" + item.id + "\" value=\"" + escapeAttribute(item.remarks || "") + "\" placeholder=\"Add a remark\" /></div>" +
             "<div class=\"button-row\">" +
-            "<button type=\"button\" class=\"btn success\" data-teacher-action=\"Approved\" data-id=\"" + item.id + "\">Approve</button>" +
-            "<button type=\"button\" class=\"btn danger\" data-teacher-action=\"Rejected\" data-id=\"" + item.id + "\">Reject</button>" +
-            "<button type=\"button\" class=\"btn warn\" data-teacher-action=\"Correction Requested\" data-id=\"" + item.id + "\">Request Correction</button>" +
+            "<button type=\"button\" class=\"btn success\" data-teacher-action=\"Approved\" data-id=\"" + item.id + "\">✓ Approve</button>" +
+            "<button type=\"button\" class=\"btn danger\" data-teacher-action=\"Rejected\" data-id=\"" + item.id + "\">✕ Reject</button>" +
+            "<button type=\"button\" class=\"btn warn\" data-teacher-action=\"Correction Requested\" data-id=\"" + item.id + "\">↺ Request Correction</button>" +
             "</div>" +
             "</article>"
           );
@@ -632,7 +756,8 @@ function renderEvaluatorDashboard() {
     pending: pendingVerification,
     rejected: 0,
     correction: 0,
-    score: approved.reduce((sum, item) => sum + safeMark(getSubmissionEffectiveMarks(item)), 0)
+    score: approved.reduce((sum, item) => sum + safeMark(getSubmissionEffectiveMarks(item)), 0),
+    maxScore: approved.reduce((sum, item) => sum + getSubmissionScoreCapacity(item), 0)
   };
 
   return (
@@ -647,7 +772,8 @@ function renderEvaluatorDashboard() {
       rejected: 0,
       correction: 0
     }) +
-    "<section class=\"panel\"><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-page-jump=\"evaluation\">Go to Evaluation</button></div></section>"
+    renderRecentActivityPanel(approved, "Approved Submissions for Evaluation", 5) +
+    "<section class=\"panel\"><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-page-jump=\"evaluation\">◌ Go to Evaluation</button></div></section>"
   );
 }
 
@@ -715,7 +841,7 @@ function renderEvaluatorStudentsView() {
             "<td>" + escapeHtml(student.className) + "</td>" +
             "<td>" + approvedItems.length + "</td>" +
             "<td>" + totalMarks.toFixed(1) + "</td>" +
-            "<td><button type=\"button\" class=\"btn ghost\" data-evaluator-student=\"" + student.id + "\">View Details</button></td>" +
+            "<td><button type=\"button\" class=\"btn ghost\" data-evaluator-student=\"" + student.id + "\">◍ View Details</button></td>" +
             "</tr>"
           );
         })
@@ -746,7 +872,7 @@ function renderEvaluatorStudentDetailsView() {
           const criteriaItem = getCriteriaById(item.criteriaId);
           const suggestedMarks = calculateMarksByRule(item, criteriaItem);
           const currentMarks = Number.isFinite(item.marks) ? item.marks : suggestedMarks;
-          const minMarks = getCriteriaMinMarks(criteriaItem);
+          const minMarks = getCriteriaMinMarks(criteriaItem, item);
           const maxMarks = getCriteriaMaxMarks(criteriaItem, item);
           const verified = Boolean(item.evaluatorVerified);
 
@@ -756,18 +882,19 @@ function renderEvaluatorStudentDetailsView() {
             "<div class=\"meta-list\">" +
             "<p><strong>Category:</strong> " + escapeHtml(getCriteriaCategoryLabel(criteriaItem)) + "</p>" +
             "<p><strong>Rule Type:</strong> " + escapeHtml(getCriteriaTypeLabel(criteriaItem ? criteriaItem.type : "fixed")) + "</p>" +
+            "<p><strong>Evidence:</strong> " + escapeHtml(formatEvidenceSummary(item, criteriaItem)) + "</p>" +
             "<p><strong>Description:</strong> " + escapeHtml(item.description) + "</p>" +
             "<p><strong>Proof:</strong> " + escapeHtml(item.proof || "-") + "</p>" +
             "<p><strong>Teacher Remark:</strong> " + escapeHtml(item.remarks || "-") + "</p>" +
             "<p><strong>Auto Marks:</strong> " + suggestedMarks.toFixed(1) + "</p>" +
             "</div>" +
             "<div class=\"button-row\">" +
-            "<button type=\"button\" class=\"btn " + (verified ? "ghost" : "success") + "\" data-evaluator-verify=\"" + item.id + "\">" + (verified ? "Verified" : "Verify Details") + "</button>" +
-            "<button type=\"button\" class=\"btn ghost\" data-use-auto=\"" + item.id + "\">Use Auto</button>" +
+            "<button type=\"button\" class=\"btn " + (verified ? "ghost" : "success") + "\" data-evaluator-verify=\"" + item.id + "\">" + (verified ? "✓ Verified" : "✓ Verify Details") + "</button>" +
+            "<button type=\"button\" class=\"btn ghost\" data-use-auto=\"" + item.id + "\">⚡ Use Auto</button>" +
             "</div>" +
             "<form class=\"stack-form\" data-mark-form=\"" + item.id + "\">" +
             "<div class=\"field\"><label>Enter Marks (Manual Override Allowed)</label><input name=\"marks\" type=\"number\" min=\"" + minMarks + "\" max=\"" + maxMarks + "\" step=\"0.5\" required value=\"" + currentMarks + "\" /></div>" +
-            "<button type=\"submit\" class=\"btn primary\">Save Marks</button>" +
+            "<button type=\"submit\" class=\"btn primary\">💾 Save Marks</button>" +
             "</form>" +
             "</article>"
           );
@@ -789,6 +916,7 @@ function renderAdminDashboard() {
   return (
     "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Overview of criteria, submissions, and yearly setup.</p></div></section>" +
     renderDashboardCards(metrics) +
+    renderStatusProgress("Workflow Status", metrics) +
     "<section class=\"chart-card\"><h3>System Snapshot</h3><div class=\"meta-list\"><p><strong>Total Categories:</strong> " + criteriaCatalog.length + "</p><p><strong>Total Criteria Items:</strong> " + getAllCriteriaItems().length + "</p><p><strong>Academic Year:</strong> " + escapeHtml(state.selectedAcademicYear) + "</p></div></section>"
   );
 }
@@ -814,7 +942,7 @@ function renderAdminCriteriaPage() {
   const fixedSelected = !editingItem || editingItem.type === "fixed" ? " selected" : "";
   const countSelected = editingItem && editingItem.type === "count" ? " selected" : "";
   const rangeSelected = editingItem && editingItem.type === "range" ? " selected" : "";
-  const booleanSelected = editingItem && editingItem.type === "boolean" ? " selected" : "";
+  const negativeSelected = editingItem && editingItem.type === "negative" ? " selected" : "";
 
   const groupedRows = categories
     .map((category) => {
@@ -841,15 +969,15 @@ function renderAdminCriteriaPage() {
     "<section class=\"section-header\"><div><h1>Criteria Management</h1><p class=\"muted\">Add categories, add criteria items, and update marks/rules.</p></div></section>" +
     "<section class=\"cards-grid two-panel-grid\">" +
     "<article class=\"panel\"><h3>Academic Year</h3><div class=\"field\"><label for=\"academic-year-select\">Select Session</label><select id=\"academic-year-select\">" + yearOptions + "</select></div>" +
-    "<hr /><h3>Add Category</h3><form id=\"category-form\" class=\"stack-form\"><div class=\"field\"><label for=\"category-title\">Category Name</label><input id=\"category-title\" name=\"categoryTitle\" type=\"text\" required /></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">Add Category</button></div></form></article>" +
+    "<hr /><h3>Add Category</h3><form id=\"category-form\" class=\"stack-form\"><div class=\"field\"><label for=\"category-title\">Category Name</label><input id=\"category-title\" name=\"categoryTitle\" type=\"text\" required /></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">＋ Add Category</button></div></form></article>" +
     "<article class=\"panel\"><h3>" + (editingItem ? "Edit Criteria Item" : "Add Criteria Item") + "</h3>" +
     "<form id=\"criteria-item-form\" class=\"stack-form\" data-editing-item=\"" + (editingItem ? editingItem.id : "") + "\">" +
     "<div class=\"field\"><label for=\"criteria-item-category\">Category</label><select id=\"criteria-item-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div>" +
     "<div class=\"field\"><label for=\"criteria-item-title\">Title</label><input id=\"criteria-item-title\" name=\"title\" type=\"text\" required value=\"" + escapeAttribute(editingItem ? editingItem.title : "") + "\" /></div>" +
-    "<div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + fixedSelected + ">Fixed Value</option><option value=\"count\"" + countSelected + ">Multiple Count</option><option value=\"range\"" + rangeSelected + ">Range Based</option><option value=\"boolean\"" + booleanSelected + ">Boolean</option></select></div>" +
-    "<div class=\"field\"><label for=\"criteria-item-marks\">Marks (for fixed/count/boolean)</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div>" +
+    "<div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + fixedSelected + ">Fixed / Boolean</option><option value=\"count\"" + countSelected + ">Count Based</option><option value=\"range\"" + rangeSelected + ">Range Based</option><option value=\"negative\"" + negativeSelected + ">Negative Marks</option></select></div>" +
+    "<div class=\"field\"><label for=\"criteria-item-marks\">Marks (fixed/count/negative)</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div>" +
     "<div class=\"field\"><label for=\"criteria-item-rules\">Range Rules (for range type)</label><textarea id=\"criteria-item-rules\" name=\"rules\" placeholder=\"90-100:5, 80-89.99:4\">" + escapeHtml(editingItem ? formatRulesText(editingItem.rules || []) : "") + "</textarea></div>" +
-    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "Update Item" : "Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost " + (editingItem ? "" : "hidden") + "\">Cancel</button></div>" +
+    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "✎ Update Item" : "＋ Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost " + (editingItem ? "" : "hidden") + "\">Cancel</button></div>" +
     "</form></article></section>" +
     "<section class=\"panel\"><h3>Criteria by Category</h3><div class=\"table-wrap\"><table><thead><tr><th>Category</th><th>Item</th><th>Type</th><th>Marks / Rules</th><th>Actions</th></tr></thead><tbody>" + groupedRows + "</tbody></table></div></section>"
   );
@@ -863,12 +991,14 @@ function renderHodDashboard() {
     pending: submissions.filter((item) => item.status === "Pending").length,
     rejected: submissions.filter((item) => item.status === "Rejected").length,
     correction: submissions.filter((item) => String(item.status).toLowerCase().indexOf("correction") > -1).length,
-    score: performance.reduce((sum, item) => sum + item.totalScore, 0)
+    score: performance.reduce((sum, item) => sum + item.totalScore, 0),
+    maxScore: performance.reduce((sum, item) => sum + item.maxScore, 0)
   };
 
   return (
     "<section class=\"section-header\"><div><h1>HOD / IQAC Dashboard</h1><p class=\"muted\">Institution-level performance overview.</p></div></section>" +
     renderDashboardCards(metrics) +
+    renderCategoryBreakdown(submissions, "Institution Score by Category") +
     renderStatusProgress("Institution Submission Health", metrics)
   );
 }
@@ -1102,7 +1232,7 @@ function submitStudentSubmission(form) {
     checked: false
   };
 
-  if (criteriaItem.type === "count") {
+  if (criteriaItem.type === "count" || criteriaItem.type === "negative") {
     const countValue = Number(formData.get("countValue"));
     if (!Number.isFinite(countValue) || countValue <= 0) {
       showToast("Please enter a valid count.", "error");
@@ -1163,7 +1293,9 @@ function updateTeacherStatus(submissionId, nextStatus) {
   submission.status = nextStatus;
   submission.remarks = remarkValue;
 
-  if (nextStatus !== "Approved") {
+  if (nextStatus === "Approved") {
+    submission.marks = calculateMarksByRule(submission, getCriteriaById(submission.criteriaId));
+  } else {
     submission.marks = null;
     submission.evaluatorVerified = false;
   }
@@ -1195,7 +1327,7 @@ function saveEvaluatorMarks(form) {
     return;
   }
 
-  const min = getCriteriaMinMarks(criteriaItem);
+  const min = getCriteriaMinMarks(criteriaItem, submission);
   const max = getCriteriaMaxMarks(criteriaItem, submission);
 
   if (marks < min || marks > max) {
@@ -1287,6 +1419,11 @@ function submitCriteriaItemForm(form) {
 
   if (type !== "range" && !Number.isFinite(marks)) {
     showToast("Marks value is required for this type.", "error");
+    return;
+  }
+
+  if (type === "negative" && marks > 0) {
+    showToast("Negative criteria must use zero or negative marks.", "error");
     return;
   }
 
@@ -1441,13 +1578,18 @@ function calculateMarksByRule(submission, criteriaItem) {
     return count * criteriaItem.marks;
   }
 
+  if (criteriaItem.type === "negative") {
+    const count = Number.isFinite(evidence.count) ? evidence.count : 1;
+    return count * criteriaItem.marks;
+  }
+
   if (criteriaItem.type === "range") {
     const value = Number.isFinite(evidence.value) ? evidence.value : null;
     if (!Number.isFinite(value)) {
       return 0;
     }
 
-    const matched = (criteriaItem.rules || []).find((rule) => value >= rule.min && value <= rule.max);
+    const matched = getMatchedRangeRule(criteriaItem, value);
     return matched ? matched.marks : 0;
   }
 
@@ -1467,14 +1609,19 @@ function getSubmissionEffectiveMarks(submission) {
   return calculateMarksByRule(submission, criteriaItem);
 }
 
-function getCriteriaMinMarks(criteriaItem) {
+function getCriteriaMinMarks(criteriaItem, submission) {
   if (!criteriaItem) {
     return -100;
   }
 
+  if (criteriaItem.type === "negative") {
+    const count = submission && submission.evidence && Number.isFinite(submission.evidence.count) ? submission.evidence.count : 1;
+    return Math.min(0, count * (Number(criteriaItem.marks) || 0));
+  }
+
   if (criteriaItem.type === "range") {
     const marks = (criteriaItem.rules || []).map((rule) => rule.marks);
-    return marks.length ? Math.min(...marks, 0) : -100;
+    return marks.length ? Math.min(...marks, 0) : 0;
   }
 
   return Math.min(0, Number(criteriaItem.marks) || 0);
@@ -1485,18 +1632,40 @@ function getCriteriaMaxMarks(criteriaItem, submission) {
     return 100;
   }
 
+  if (criteriaItem.type === "negative") {
+    return 0;
+  }
+
   if (criteriaItem.type === "count") {
     const count = submission && submission.evidence && Number.isFinite(submission.evidence.count) ? submission.evidence.count : 10;
     const suggested = count * (Number(criteriaItem.marks) || 0);
-    return Math.max(0, suggested, 100);
+    return Math.max(0, suggested);
   }
 
   if (criteriaItem.type === "range") {
     const marks = (criteriaItem.rules || []).map((rule) => rule.marks);
-    return marks.length ? Math.max(...marks, 100) : 100;
+    return marks.length ? Math.max(...marks, 0) : 0;
   }
 
-  return Math.max(100, Number(criteriaItem.marks) || 0);
+  return Math.max(0, Number(criteriaItem.marks) || 0);
+}
+
+function getSubmissionScoreCapacity(submission) {
+  const criteriaItem = getCriteriaById(submission.criteriaId);
+  if (!criteriaItem || criteriaItem.type === "negative") {
+    return 0;
+  }
+
+  if (criteriaItem.type === "range") {
+    const marks = (criteriaItem.rules || []).map((rule) => rule.marks).filter((mark) => mark > 0);
+    return marks.length ? Math.max(...marks) : 0;
+  }
+
+  if (criteriaItem.type === "count") {
+    return Math.max(0, calculateMarksByRule(submission, criteriaItem));
+  }
+
+  return Math.max(0, Number(criteriaItem.marks) || 0);
 }
 
 function getCriteriaRuleSummary(criteriaItem) {
@@ -1512,24 +1681,71 @@ function getCriteriaRuleSummary(criteriaItem) {
     return "per count x " + criteriaItem.marks;
   }
 
+  if (criteriaItem.type === "negative") {
+    return "penalty per count x " + criteriaItem.marks;
+  }
+
   if (criteriaItem.type === "boolean") {
     return "Yes => " + criteriaItem.marks + ", No => 0";
   }
 
-  return "fixed: " + criteriaItem.marks;
+  return "fixed/boolean: " + criteriaItem.marks;
+}
+
+function formatEvidenceSummary(submission, criteriaItem) {
+  if (!criteriaItem) {
+    return "-";
+  }
+
+  const evidence = normalizeEvidence(submission.evidence);
+  const autoMarks = calculateMarksByRule(submission, criteriaItem);
+
+  if (criteriaItem.type === "count") {
+    const count = Number.isFinite(evidence.count) ? evidence.count : 0;
+    return count + " x " + criteriaItem.marks + " = " + autoMarks.toFixed(1);
+  }
+
+  if (criteriaItem.type === "negative") {
+    const count = Number.isFinite(evidence.count) ? evidence.count : 1;
+    return count + " x " + criteriaItem.marks + " = " + autoMarks.toFixed(1);
+  }
+
+  if (criteriaItem.type === "range") {
+    const value = Number.isFinite(evidence.value) ? evidence.value : null;
+    const matched = getMatchedRangeRule(criteriaItem, value);
+    const rangeLabel = matched ? matched.min + "-" + matched.max : "no matching range";
+    return Number.isFinite(value) ? value + "% => " + rangeLabel + " = " + autoMarks.toFixed(1) : "No percentage entered";
+  }
+
+  if (criteriaItem.type === "boolean") {
+    return (evidence.checked ? "Yes" : "No") + " = " + autoMarks.toFixed(1);
+  }
+
+  return "Applicable = " + autoMarks.toFixed(1);
+}
+
+function getMatchedRangeRule(criteriaItem, value) {
+  if (!criteriaItem || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return (criteriaItem.rules || []).find((rule) => value >= rule.min && value <= rule.max) || null;
 }
 
 function getCriteriaTypeLabel(type) {
   if (type === "count") {
-    return "Multiple Count";
+    return "Count Based";
   }
   if (type === "range") {
     return "Range Based";
   }
-  if (type === "boolean") {
-    return "Boolean";
+  if (type === "negative") {
+    return "Negative Marks";
   }
-  return "Fixed Value";
+  if (type === "boolean") {
+    return "Yes/No";
+  }
+  return "Fixed / Boolean";
 }
 
 function getCriteriaCategoryLabel(criteriaItem) {
@@ -1569,7 +1785,7 @@ function buildClassPerformance() {
 
     const effective = getSubmissionEffectiveMarks(submission);
     classEntry.totalScore += effective;
-    classEntry.maxScore += Math.max(1, Math.abs(getCriteriaMaxMarks(criteriaItem, submission)));
+    classEntry.maxScore += getSubmissionScoreCapacity(submission);
   });
 
   const classData = Array.from(classMap.values());
@@ -1593,7 +1809,9 @@ function buildSummaryMetrics(items) {
   const pending = items.filter((item) => item.status === "Pending").length;
   const rejected = items.filter((item) => item.status === "Rejected").length;
   const correction = items.filter((item) => String(item.status).toLowerCase().indexOf("correction") > -1).length;
-  const score = items.reduce((sum, item) => sum + safeMark(getSubmissionEffectiveMarks(item)), 0);
+  const approvedItems = items.filter((item) => item.status === "Approved");
+  const score = approvedItems.reduce((sum, item) => sum + safeMark(getSubmissionEffectiveMarks(item)), 0);
+  const maxScore = approvedItems.reduce((sum, item) => sum + getSubmissionScoreCapacity(item), 0);
 
   return {
     total: total,
@@ -1601,7 +1819,8 @@ function buildSummaryMetrics(items) {
     pending: pending,
     rejected: rejected,
     correction: correction,
-    score: score
+    score: score,
+    maxScore: maxScore
   };
 }
 
@@ -1739,56 +1958,9 @@ function escapeAttribute(value) {
 }
 
 function getDefaultCriteriaCatalog() {
-  return cloneCriteriaCatalog([
-    {
-      id: "cat-academics",
-      category: "Academics",
-      items: [
-        { id: 101, category: "Academics", title: "S Grade", type: "fixed", marks: 5 },
-        { id: 102, category: "Academics", title: "A+ Grade", type: "fixed", marks: 3 },
-        { id: 103, category: "Academics", title: "Fail", type: "fixed", marks: -2 }
-      ]
-    },
-    {
-      id: "cat-courses",
-      category: "Online Courses",
-      items: [
-        { id: 201, category: "Online Courses", title: "NPTEL", type: "count", marks: 10 },
-        { id: 202, category: "Online Courses", title: "MOOC", type: "count", marks: 5 }
-      ]
-    },
-    {
-      id: "cat-performance",
-      category: "Class Performance",
-      items: [
-        {
-          id: 301,
-          category: "Class Performance",
-          title: "Pass Percentage",
-          type: "range",
-          rules: [
-            { min: 90, max: 100, marks: 5 },
-            { min: 80, max: 89.99, marks: 4 }
-          ]
-        }
-      ]
-    }
-  ]);
+  return cloneCriteriaCatalog(window.criteriaData || []);
 }
 
 function getDefaultSubmissions() {
-  return cloneSubmissions([
-    {
-      id: 1,
-      studentId: 1,
-      criteriaId: 102,
-      description: "A+ grade secured in semester results.",
-      status: "Approved",
-      remarks: "Verified with mark list",
-      marks: null,
-      proof: "sem_result_anika.pdf",
-      evaluatorVerified: true,
-      evidence: { type: "fixed" }
-    }
-  ]);
+  return cloneSubmissions(window.seedSubmissions || []);
 }

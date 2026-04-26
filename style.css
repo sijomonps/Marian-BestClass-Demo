@@ -48,10 +48,7 @@ body {
 body {
   font-family: "Outfit", "Segoe UI", Tahoma, sans-serif;
   color: var(--color-text);
-  background:
-    radial-gradient(circle at 2% 4%, rgba(37, 99, 235, 0.08), transparent 28%),
-    radial-gradient(circle at 98% 12%, rgba(6, 182, 212, 0.12), transparent 26%),
-    linear-gradient(180deg, #f8fbff 0%, var(--color-bg) 58%, #edf2f8 100%);
+  background: linear-gradient(180deg, #f8fbff 0%, var(--color-bg) 58%, #edf2f8 100%);
 }
 
 .hidden {
@@ -413,6 +410,38 @@ p {
   resize: vertical;
 }
 
+.criteria-rule-card {
+  border: 1px solid #cfe0f7;
+  border-radius: var(--radius-sm);
+  background: #f8fbff;
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.criteria-rule-card h3 {
+  margin-top: var(--space-2);
+  font-size: 1rem;
+}
+
+.criteria-rule-card p {
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.criteria-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 0.2rem 0.56rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 .button-row {
   display: flex;
   align-items: center;
@@ -488,6 +517,10 @@ table {
   border-collapse: collapse;
   min-width: 680px;
   background: #fff;
+}
+
+.compact-table table {
+  min-width: 760px;
 }
 
 thead th {
@@ -676,6 +709,23 @@ tbody tr:hover {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+
+.progress-score,
+.progress-approved {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.progress-pending {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.progress-rejected {
+  background: linear-gradient(90deg, #dc2626, #f87171);
+}
+
+.progress-correction {
+  background: linear-gradient(90deg, #ea580c, #fb923c);
 }
 
 .leaderboard {
