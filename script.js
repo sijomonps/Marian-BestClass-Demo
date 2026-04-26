@@ -71,6 +71,7 @@ const state = {
   evaluatorView: "departments",
   evaluatorDepartment: "",
   evaluatorStudentId: null,
+  evaluatorTransition: null,
   selectedSubmissionCategoryId: "",
   selectedSubmissionItemId: "",
   editingCriteriaItemId: null
@@ -78,6 +79,7 @@ const state = {
 
 const ui = {};
 let pendingConfirmationAction = null;
+let evaluatorTransitionResetTimer = null;
 const appPageConfig = normalizeAppPageConfig(window.appPageConfig || {});
 
 document.addEventListener("DOMContentLoaded", init);
@@ -487,14 +489,7 @@ function renderTopbar() {
 
 function getTopbarSubheading() {
   if (state.currentRole === "evaluator" && state.activePage === "evaluation") {
-    if (state.evaluatorView === "students") {
-      return "Department: " + state.evaluatorDepartment;
-    }
-    if (state.evaluatorView === "details") {
-      const student = getStudentById(state.evaluatorStudentId);
-      return student ? "Evaluating " + student.name : "Student details";
-    }
-    return "Select a department to begin";
+    return "Pending and completed verification queue";
   }
 
   return "Academic Year " + state.selectedAcademicYear;
@@ -994,136 +989,77 @@ function renderEvaluatorDashboard() {
 }
 
 function renderEvaluatorEvaluationPage() {
-  if (state.evaluatorView === "students") {
-    return renderEvaluatorStudentsView();
-  }
-  if (state.evaluatorView === "details") {
-    return renderEvaluatorStudentDetailsView();
-  }
-  return renderEvaluatorDepartmentsView();
+  const approvedSubmissions = submissions
+    .filter((item) => item.status === "Approved")
+    .sort((a, b) => b.id - a.id);
+
+  const pendingSubmissions = approvedSubmissions.filter((item) => !Boolean(item.evaluatorVerified));
+  const completedSubmissions = approvedSubmissions.filter((item) => Boolean(item.evaluatorVerified));
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div><h1>Evaluation</h1><p class=\"muted\">One action per item. Verify pending submissions and review completed ones.</p></div>" +
+    "</section>" +
+    renderEvaluatorQueueSection("Pending", "pending", pendingSubmissions, "No pending submissions right now.") +
+    renderEvaluatorQueueSection("Completed", "completed", completedSubmissions, "No completed submissions yet.")
+  );
 }
 
-function renderEvaluatorDepartmentsView() {
-  const summaryMap = new Map();
+function renderEvaluatorQueueSection(title, sectionType, items, emptyMessage) {
+  const sectionClass = sectionType === "completed" ? "eval-section eval-section-completed" : "eval-section eval-section-pending";
+  const badgeClass = sectionType === "completed" ? "eval-title-badge eval-title-badge-completed" : "eval-title-badge eval-title-badge-pending";
+  const cards = items.length
+    ? items.map((item) => renderEvaluatorQueueCard(item, sectionType)).join("")
+    : "<p class=\"empty-state\">" + escapeHtml(emptyMessage) + "</p>";
 
-  students.forEach((student) => {
-    const departmentName = getDepartmentByClassName(student.className);
-    const bucket = summaryMap.get(departmentName) || {
-      departmentName: departmentName,
-      studentCount: 0,
-      readyCount: 0
-    };
+  return (
+    "<section class=\"panel " + sectionClass + "\">" +
+    "<div class=\"eval-section-head\">" +
+    "<div><span class=\"" + badgeClass + "\">" + escapeHtml(title) + "</span><h3>" + escapeHtml(title) + " Submissions</h3></div>" +
+    "<p class=\"muted\">" + items.length + " item" + (items.length === 1 ? "" : "s") + "</p>" +
+    "</div>" +
+    (items.length ? "<div class=\"submission-grid eval-grid\">" + cards + "</div>" : cards) +
+    "</section>"
+  );
+}
 
-    bucket.studentCount += 1;
-    if (getApprovedSubmissionsByStudent(student.id).length > 0) {
-      bucket.readyCount += 1;
+function renderEvaluatorQueueCard(item, sectionType) {
+  const criteriaItem = getCriteriaById(item.criteriaId);
+  const student = getStudentById(item.studentId);
+  const autoMarks = calculateMarksByRule(item, criteriaItem);
+  const currentMarks = Number.isFinite(item.marks) ? item.marks : "";
+  const minMarks = getCriteriaMinMarks(criteriaItem, item);
+  const maxMarks = getCriteriaMaxMarks(criteriaItem, item);
+  const transition = state.evaluatorTransition;
+  let transitionClass = "";
+
+  if (transition && transition.submissionId === item.id) {
+    if (transition.direction === "to-completed" && sectionType === "completed") {
+      transitionClass = " eval-card-enter-completed";
+    } else if (transition.direction === "to-pending" && sectionType === "pending") {
+      transitionClass = " eval-card-enter-pending";
     }
-
-    summaryMap.set(departmentName, bucket);
-  });
-
-  const cards = Array.from(summaryMap.values())
-    .sort((a, b) => a.departmentName.localeCompare(b.departmentName))
-    .map((item) => {
-      return (
-        "<article class=\"department-card flex-row\">" +
-        "<div class=\"dept-col dept-name\">" + escapeHtml(item.departmentName) + "</div>" +
-        "<div class=\"dept-col dept-stats\">" + item.studentCount + " students | " + item.readyCount + " ready</div>" +
-        "<div class=\"dept-col dept-action\"><button type=\"button\" class=\"btn primary\" data-evaluator-department=\"" + escapeAttribute(item.departmentName) + "\">Select</button></div>" +
-        "</article>"
-      );
-    })
-    .join("");
-
-  return (
-    "<section class=\"section-header\"><div><h1>Evaluation</h1><p class=\"muted\">Step 1: Choose a department.</p></div></section>" +
-    "<section class=\"department-grid\">" + cards + "</section>"
-  );
-}
-
-function renderEvaluatorStudentsView() {
-  const departmentStudents = students
-    .filter((student) => getDepartmentByClassName(student.className) === state.evaluatorDepartment)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const rows = departmentStudents.length
-    ? departmentStudents
-        .map((student) => {
-          const approvedItems = getApprovedSubmissionsByStudent(student.id);
-          const totalMarks = approvedItems.reduce((sum, item) => sum + safeMark(getSubmissionEffectiveMarks(item)), 0);
-          return (
-            "<tr>" +
-            "<td>" + escapeHtml(student.name) + "</td>" +
-            "<td>" + escapeHtml(student.className) + "</td>" +
-            "<td>" + approvedItems.length + "</td>" +
-            "<td>" + totalMarks.toFixed(1) + "</td>" +
-            "<td><button type=\"button\" class=\"btn ghost\" data-evaluator-student=\"" + student.id + "\">◍ View Details</button></td>" +
-            "</tr>"
-          );
-        })
-        .join("")
-    : "<tr><td colspan=\"5\" class=\"empty-row\">No submissions yet</td></tr>";
-
-  return (
-    "<section class=\"section-header\">" +
-    "<div><h1>" + escapeHtml(state.evaluatorDepartment) + "</h1><p class=\"muted\">Step 2: Select a student.</p></div>" +
-    "<button type=\"button\" class=\"btn ghost\" data-evaluator-back=\"departments\">Back</button>" +
-    "</section>" +
-    "<section class=\"panel\"><div class=\"table-wrap\"><table><thead><tr><th>Student</th><th>Class</th><th>Approved</th><th>Total Marks</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table></div></section>"
-  );
-}
-
-function renderEvaluatorStudentDetailsView() {
-  const student = getStudentById(state.evaluatorStudentId);
-  if (!student) {
-    state.evaluatorView = "students";
-    return renderEvaluatorStudentsView();
   }
 
-  const studentSubmissions = getApprovedSubmissionsByStudent(student.id).sort((a, b) => b.id - a.id);
-
-  const cards = studentSubmissions.length
-    ? studentSubmissions
-        .map((item) => {
-          const criteriaItem = getCriteriaById(item.criteriaId);
-          const suggestedMarks = calculateMarksByRule(item, criteriaItem);
-          const currentMarks = Number.isFinite(item.marks) ? item.marks : suggestedMarks;
-          const minMarks = getCriteriaMinMarks(criteriaItem, item);
-          const maxMarks = getCriteriaMaxMarks(criteriaItem, item);
-          const verified = Boolean(item.evaluatorVerified);
-
-          return (
-            "<article class=\"submission-card\">" +
-            "<div class=\"submission-head\"><h4>" + escapeHtml(criteriaItem ? criteriaItem.title : "Removed Item") + "</h4><span class=\"status-pill " + (verified ? "status-approved" : "status-pending") + "\">" + (verified ? "Verified" : "Pending Verification") + "</span></div>" +
-            "<div class=\"meta-list\">" +
-            "<p><strong>Category:</strong> " + escapeHtml(getCriteriaCategoryLabel(criteriaItem)) + "</p>" +
-            "<p><strong>Rule Type:</strong> " + escapeHtml(getCriteriaTypeLabel(criteriaItem ? criteriaItem.type : "fixed")) + "</p>" +
-            "<p><strong>Evidence:</strong> " + escapeHtml(formatEvidenceSummary(item, criteriaItem)) + "</p>" +
-            "<p><strong>Description:</strong> " + escapeHtml(item.description) + "</p>" +
-            "<p><strong>Proof:</strong> " + escapeHtml(item.proof || "-") + "</p>" +
-            "<p><strong>Teacher Remark:</strong> " + escapeHtml(item.remarks || "-") + "</p>" +
-            "<p><strong>Auto Marks:</strong> " + suggestedMarks.toFixed(1) + "</p>" +
-            "</div>" +
-            "<div class=\"button-row\">" +
-            "<button type=\"button\" class=\"btn " + (verified ? "ghost" : "success") + "\" data-evaluator-verify=\"" + item.id + "\">" + (verified ? "✓ Verified" : "✓ Verify Details") + "</button>" +
-            "<button type=\"button\" class=\"btn ghost\" data-use-auto=\"" + item.id + "\">⚡ Use Auto</button>" +
-            "</div>" +
-            "<form class=\"stack-form\" data-mark-form=\"" + item.id + "\">" +
-            "<div class=\"field\"><label>Enter Marks (Manual Override Allowed)</label><input name=\"marks\" type=\"number\" min=\"" + minMarks + "\" max=\"" + maxMarks + "\" step=\"0.5\" required value=\"" + currentMarks + "\" /></div>" +
-            "<button type=\"submit\" class=\"btn primary\">💾 Save Marks</button>" +
-            "</form>" +
-            "</article>"
-          );
-        })
-        .join("")
-    : "<div class=\"panel\"><p class=\"empty-state\">No submissions yet</p></div>";
+  const actionHtml = sectionType === "pending"
+    ? "<div class=\"field eval-manual-field\"><label for=\"eval-manual-" + item.id + "\">Manual Marks (Optional)</label><input id=\"eval-manual-" + item.id + "\" data-evaluator-manual=\"" + item.id + "\" type=\"number\" min=\"" + minMarks + "\" max=\"" + maxMarks + "\" step=\"0.5\" placeholder=\"Leave blank to use auto marks\" value=\"" + escapeAttribute(currentMarks === autoMarks ? "" : currentMarks) + "\" /></div>" +
+      "<div class=\"button-row\"><button type=\"button\" class=\"btn primary full\" data-evaluator-verify-save=\"" + item.id + "\">✔ Verify &amp; Save</button></div>"
+    : "<div class=\"meta-list\"><p><strong>Status:</strong> Completed</p><p><strong>Marks:</strong> " + safeMark(getSubmissionEffectiveMarks(item)).toFixed(1) + "</p></div>" +
+      "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-evaluator-edit=\"" + item.id + "\">Edit</button></div>";
 
   return (
-    "<section class=\"section-header\">" +
-    "<div><h1>" + escapeHtml(student.name) + "</h1><p class=\"muted\">Step 3: Verify details and save marks.</p></div>" +
-    "<button type=\"button\" class=\"btn ghost\" data-evaluator-back=\"students\">Back</button>" +
-    "</section>" +
-    "<section class=\"submission-grid\">" + cards + "</section>"
+    "<article class=\"submission-card eval-card eval-card-" + sectionType + transitionClass + "\">" +
+    "<div class=\"submission-head\"><h4>" + escapeHtml(criteriaItem ? criteriaItem.title : "Removed Item") + "</h4><span class=\"status-pill " + (sectionType === "completed" ? "status-approved" : "status-pending") + "\">" + (sectionType === "completed" ? "Completed" : "Pending") + "</span></div>" +
+    "<div class=\"meta-list\">" +
+    "<p><strong>Student:</strong> " + escapeHtml(student ? student.name : "Unknown Student") + "</p>" +
+    "<p><strong>Class:</strong> " + escapeHtml(student ? student.className : "-") + "</p>" +
+    "<p><strong>Category:</strong> " + escapeHtml(getCriteriaCategoryLabel(criteriaItem)) + "</p>" +
+    "<p><strong>Description:</strong> " + escapeHtml(item.description) + "</p>" +
+    "<p><strong>Proof:</strong> " + escapeHtml(item.proof || "-") + "</p>" +
+    "<p><strong>Auto Marks:</strong> " + autoMarks.toFixed(1) + "</p>" +
+    "</div>" +
+    actionHtml +
+    "</article>"
   );
 }
 
@@ -1295,58 +1231,15 @@ function handlePageClick(event) {
     return;
   }
 
-  const departmentButton = event.target.closest("button[data-evaluator-department]");
-  if (departmentButton) {
-    state.evaluatorDepartment = departmentButton.dataset.evaluatorDepartment || "";
-    state.evaluatorStudentId = null;
-    state.evaluatorView = "students";
-    renderTopbar();
-    renderPage();
+  const verifySaveButton = event.target.closest("button[data-evaluator-verify-save]");
+  if (verifySaveButton) {
+    verifyAndSaveEvaluatorSubmission(Number(verifySaveButton.dataset.evaluatorVerifySave));
     return;
   }
 
-  const studentButton = event.target.closest("button[data-evaluator-student]");
-  if (studentButton) {
-    state.evaluatorStudentId = Number(studentButton.dataset.evaluatorStudent);
-    state.evaluatorView = "details";
-    renderTopbar();
-    renderPage();
-    return;
-  }
-
-  const evaluatorBackButton = event.target.closest("button[data-evaluator-back]");
-  if (evaluatorBackButton) {
-    const nextView = evaluatorBackButton.dataset.evaluatorBack;
-    if (nextView === "departments") {
-      resetEvaluatorFlow();
-    } else {
-      state.evaluatorView = "students";
-      state.evaluatorStudentId = null;
-    }
-    renderTopbar();
-    renderPage();
-    return;
-  }
-
-  const verifyButton = event.target.closest("button[data-evaluator-verify]");
-  if (verifyButton) {
-    toggleEvaluatorVerification(Number(verifyButton.dataset.evaluatorVerify));
-    return;
-  }
-
-  const useAutoButton = event.target.closest("button[data-use-auto]");
-  if (useAutoButton) {
-    const submissionId = Number(useAutoButton.dataset.useAuto);
-    const submission = submissions.find((item) => item.id === submissionId);
-    if (!submission) {
-      showToast("Submission not found.", "error");
-      return;
-    }
-
-    const autoMarks = calculateMarksByRule(submission, getCriteriaById(submission.criteriaId));
-    submission.marks = autoMarks;
-    renderPage();
-    showToast("Auto marks applied: " + autoMarks.toFixed(1), "success");
+  const editCompletedButton = event.target.closest("button[data-evaluator-edit]");
+  if (editCompletedButton) {
+    moveEvaluatorSubmissionToPending(Number(editCompletedButton.dataset.evaluatorEdit));
     return;
   }
 
@@ -1393,12 +1286,6 @@ function handlePageSubmit(event) {
   if (form.id === "student-submission-form") {
     event.preventDefault();
     submitStudentSubmission(form);
-    return;
-  }
-
-  if (form.dataset.markForm) {
-    event.preventDefault();
-    saveEvaluatorMarks(form);
     return;
   }
 
@@ -1537,8 +1424,7 @@ function updateTeacherStatus(submissionId, nextStatus) {
   renderPage();
 }
 
-function saveEvaluatorMarks(form) {
-  const submissionId = Number(form.dataset.markForm);
+function verifyAndSaveEvaluatorSubmission(submissionId) {
   const submission = submissions.find((item) => item.id === submissionId);
 
   if (!submission) {
@@ -1552,16 +1438,21 @@ function saveEvaluatorMarks(form) {
     return;
   }
 
-  const marksInput = form.querySelector("input[name='marks']");
-  const marks = Number(marksInput.value);
-
-  if (!Number.isFinite(marks)) {
-    showToast("Marks must be a valid number.", "error");
-    return;
-  }
+  const marksInput = ui.pageContent.querySelector("[data-evaluator-manual='" + submissionId + "']");
+  const manualInput = marksInput ? String(marksInput.value || "").trim() : "";
+  const autoMarks = calculateMarksByRule(submission, criteriaItem);
 
   const min = getCriteriaMinMarks(criteriaItem, submission);
   const max = getCriteriaMaxMarks(criteriaItem, submission);
+
+  let marks = autoMarks;
+  if (manualInput !== "") {
+    marks = Number(manualInput);
+    if (!Number.isFinite(marks)) {
+      showToast("Manual marks must be a valid number.", "error");
+      return;
+    }
+  }
 
   if (marks < min || marks > max) {
     showToast("Marks must be between " + min + " and " + max + ".", "error");
@@ -1569,11 +1460,13 @@ function saveEvaluatorMarks(form) {
   }
 
   submission.marks = marks;
-  showToast("Marks saved for submission " + submissionId + ".", "success");
+  submission.evaluatorVerified = true;
+  setEvaluatorTransition(submission.id, "to-completed");
+  showToast("Submission verified and saved.", "success");
   renderPage();
 }
 
-function toggleEvaluatorVerification(submissionId) {
+function moveEvaluatorSubmissionToPending(submissionId) {
   const submission = submissions.find((item) => item.id === submissionId);
   if (!submission) {
     showToast("Submission not found.", "error");
@@ -1581,17 +1474,13 @@ function toggleEvaluatorVerification(submissionId) {
   }
 
   if (submission.status !== "Approved") {
-    showToast("Only approved submissions can be verified.", "warning");
+    showToast("Only approved submissions can be moved for evaluator review.", "warning");
     return;
   }
 
-  submission.evaluatorVerified = !Boolean(submission.evaluatorVerified);
-  showToast(
-    submission.evaluatorVerified
-      ? "Submission " + submissionId + " verified by evaluator."
-      : "Submission " + submissionId + " moved back to pending verification.",
-    "success"
-  );
+  submission.evaluatorVerified = false;
+  setEvaluatorTransition(submission.id, "to-pending");
+  showToast("Submission moved to Pending for re-evaluation.", "info");
   renderPage();
 }
 
@@ -2142,6 +2031,27 @@ function resetEvaluatorFlow() {
   state.evaluatorView = "departments";
   state.evaluatorDepartment = "";
   state.evaluatorStudentId = null;
+  state.evaluatorTransition = null;
+  if (evaluatorTransitionResetTimer) {
+    clearTimeout(evaluatorTransitionResetTimer);
+    evaluatorTransitionResetTimer = null;
+  }
+}
+
+function setEvaluatorTransition(submissionId, direction) {
+  state.evaluatorTransition = {
+    submissionId: Number(submissionId),
+    direction: String(direction || "")
+  };
+
+  if (evaluatorTransitionResetTimer) {
+    clearTimeout(evaluatorTransitionResetTimer);
+  }
+
+  evaluatorTransitionResetTimer = setTimeout(() => {
+    state.evaluatorTransition = null;
+    evaluatorTransitionResetTimer = null;
+  }, 700);
 }
 
 function openConfirmModal(title, message, action) {

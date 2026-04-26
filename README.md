@@ -60,8 +60,9 @@ The system includes multiple roles:
 
 ### 🧑‍💼 Evaluation Dashboard
 
-* Assign marks to approved submissions
-* Validate marks (cannot exceed max marks)
+* Pending and completed evaluation sections
+* Single-step `Verify & Save` workflow
+* Optional manual override with auto-mark fallback
 
 ---
 
@@ -102,10 +103,18 @@ The system includes multiple roles:
 ```
 project-folder/
 │
-├── index.html     # Main UI
-├── style.css      # Styling
-├── script.js      # Logic & dummy data
-└── README.md      # Project documentation
+├── index.html
+├── style.css
+├── script.js
+├── data.js
+├── page-bootstrap.js
+├── roles/
+│   ├── student/
+│   ├── teacher/
+│   ├── evaluator/
+│   ├── admin/
+│   └── hod/
+└── README.md
 ```
 
 ---
