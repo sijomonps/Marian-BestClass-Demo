@@ -352,6 +352,145 @@ p {
   padding: var(--space-5);
 }
 
+.criteria-header {
+  align-items: flex-start;
+}
+
+.criteria-hub {
+  width: min(100%, 360px);
+  position: relative;
+  z-index: 2;
+}
+
+.criteria-hub-head {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--space-4);
+}
+
+.criteria-hub-head h3 {
+  font-size: 1.02rem;
+}
+
+.criteria-hub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.criteria-hub-group {
+  position: relative;
+  flex: 1 1 140px;
+}
+
+.criteria-hub-toggle {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.criteria-hub-toggle.active {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: #eef4ff;
+  color: var(--color-primary-strong);
+}
+
+.criteria-hub-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  padding: 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-sm);
+  z-index: 4;
+}
+
+.criteria-hub-item {
+  width: 100%;
+  border: 0;
+  background: #f8fbff;
+  color: var(--color-text);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.criteria-hub-item:hover {
+  background: #e8f0ff;
+}
+
+.criteria-workspace {
+  display: grid;
+  gap: var(--space-5);
+  transition: filter 0.22s ease, transform 0.22s ease;
+}
+
+.criteria-workspace-blurred {
+  filter: blur(4px) saturate(0.92);
+  pointer-events: none;
+  user-select: none;
+}
+
+.criteria-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.criteria-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+.criteria-overlay-card {
+  position: relative;
+  z-index: 1;
+  width: min(1120px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.criteria-overlay-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.criteria-overlay-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.soft-panel {
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+  border: 1px solid #d9e6fb;
+}
+
+.overlay-table {
+  border-radius: 14px;
+}
+
+.overlay-table table {
+  min-width: 900px;
+}
+
 .progress-overview {
   display: grid;
   gap: var(--space-3);

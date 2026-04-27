@@ -26,7 +26,8 @@
     },
     admin: {
       dashboard: getAppRoute("roles/admin/admin-dashboard.html"),
-      criteria: getAppRoute("roles/admin/criteria-management.html")
+      criteria: getAppRoute("roles/admin/criteria-management.html"),
+      users: getAppRoute("roles/admin/user-management.html")
     },
     hod: {
       dashboard: getAppRoute("roles/hod/hod-dashboard.html"),
