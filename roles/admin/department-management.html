@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Department Management - Best Class Evaluation</title>
+  <link rel="stylesheet" href="../../style.css" />
+</head>
+<body>
+  <div id="app-shell" class="app-shell">
+    <aside id="sidebar" class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">BC</div>
+        <div>
+          <h2>Best Class</h2>
+          <p>Evaluation Panel</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <ul id="sidebar-nav"></ul>
+      </nav>
+
+      <div class="sidebar-foot">
+        <p id="sidebar-role-label">Student</p>
+      </div>
+    </aside>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Toggle sidebar">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <div class="topbar-title">
+          <h2 id="topbar-heading">Dashboard</h2>
+          <p id="topbar-subheading">Academic Year 2025-2026</p>
+        </div>
+
+        <div class="topbar-controls">
+          <span id="topbar-role-badge" class="role-badge">Student</span>
+          <button id="logout-btn" type="button" class="btn ghost">Logout</button>
+        </div>
+      </header>
+
+      <main id="page-content" class="page-content"></main>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <div id="confirm-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+      <h3 id="confirm-title">Confirm Action</h3>
+      <p id="confirm-message" class="muted">Are you sure you want to continue?</p>
+      <div class="button-row">
+        <button id="confirm-cancel" type="button" class="btn ghost">Cancel</button>
+        <button id="confirm-accept" type="button" class="btn danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../data.js"></script>
+  <script src="../../page-bootstrap.js"></script>
+  <script src="department-management.js"></script>
+  <script src="../../script.js"></script>
+</body>
+</html>

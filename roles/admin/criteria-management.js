@@ -5,16 +5,10 @@ window.applyPageConfig({
 
 (function initAdminCriteriaModule() {
   function renderCriteriaPage(ctx) {
-    ensureCriteriaUiState(ctx.state);
-
     const categories = ctx.getCriteriaCategories();
     const editingItem = ctx.state.editingCriteriaItemId ? ctx.getCriteriaById(ctx.state.editingCriteriaItemId) : null;
     const editingCategory = ctx.state.editingCategoryId ? ctx.getCategoryById(ctx.state.editingCategoryId) : null;
-    const showCategoryForm = Boolean(ctx.state.showCategoryForm || editingCategory);
-    const showCriteriaItemForm = Boolean(ctx.state.showCriteriaItemForm || editingItem);
-    const selectedYearHistory = ctx.getCriteriaHistoryForYear(ctx.state.selectedAcademicYear).slice(0, 6);
-    const menuOpen = String(ctx.state.criteriaMenuOpen || "");
-    const overlayMode = String(ctx.state.criteriaOverlayMode || "");
+    const selectedYearHistory = ctx.getCriteriaHistoryForYear(ctx.state.selectedAcademicYear).slice(0, 8);
     const editingRangeRule = editingItem && editingItem.type === "range" && (editingItem.rules || []).length
       ? editingItem.rules[0]
       : null;
@@ -28,139 +22,82 @@ window.applyPageConfig({
       })
       .join("");
 
-    const academicYearStatusRows = ctx.state.academicYearState
-      .map((item) => {
-        const chipClass = item.isActive ? "status-approved" : "status-pending";
-        const chipLabel = item.isActive ? "Active" : "Inactive";
-        return "<p><strong>" + ctx.escapeHtml(item.year) + "</strong> <span class=\"status-pill " + chipClass + "\">" + chipLabel + "</span></p>";
-      })
-      .join("");
-
-    const categoryOptions = categories
-      .map((category) => {
-        const selected = editingItem && category.category === editingItem.category ? " selected" : "";
-        return "<option value=\"" + category.id + "\"" + selected + ">" + ctx.escapeHtml(category.category) + "</option>";
-      })
-      .join("");
+    const categoryOptions = categories.length
+      ? categories
+          .map((category) => {
+            const selected = editingItem && category.category === editingItem.category ? " selected" : "";
+            return "<option value=\"" + category.id + "\"" + selected + ">" + ctx.escapeHtml(category.category) + "</option>";
+          })
+          .join("")
+      : "<option value=\"\">No category available</option>";
 
     const fixedSelected = !editingItem || editingItem.type === "fixed" ? " selected" : "";
     const countSelected = editingItem && editingItem.type === "count" ? " selected" : "";
     const rangeSelected = editingItem && editingItem.type === "range" ? " selected" : "";
-    const negativeSelected = editingItem && editingItem.type === "negative" ? " selected" : "";
-    const rangeFieldHidden = !editingItem || editingItem.type !== "range" ? " hidden" : "";
 
-    const groupedRows = categories
-      .map((category) => {
-        const itemRows = (category.items || []).length
-          ? category.items
+    const groupedListHtml = categories.length
+      ? categories.map((category) => {
+        const itemsHtml = (category.items || []).length
+          ? "<ul class=\"simple-group-list\">" + category.items
               .map((item) => {
                 return (
-                  "<tr>" +
-                  "<td>" + ctx.escapeHtml(category.category) + "</td>" +
-                  "<td>" + ctx.escapeHtml(item.title) + "</td>" +
-                  "<td>" + ctx.escapeHtml(ctx.getCriteriaTypeLabel(item.type)) + "</td>" +
-                  "<td>" + ctx.escapeHtml(getMaxMarksLabel(item)) + "</td>" +
-                  "<td>" + ctx.escapeHtml(ctx.getCriteriaRuleSummary(item)) + "</td>" +
-                  "<td><div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-item-edit=\"" + item.id + "\">Edit</button><button type=\"button\" class=\"btn danger\" data-item-delete=\"" + item.id + "\">Delete</button></div></td>" +
-                  "</tr>"
+                  "<li class=\"simple-group-item\">" +
+                  "<div class=\"simple-group-main\"><p><strong>" + ctx.escapeHtml(item.title) + "</strong></p><p class=\"muted\">Type: " + ctx.escapeHtml(ctx.getCriteriaTypeLabel(item.type)) + " | Marks: " + ctx.escapeHtml(getMaxMarksLabel(item)) + "</p><p class=\"muted\">" + ctx.escapeHtml(ctx.getCriteriaRuleSummary(item)) + "</p></div>" +
+                  "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-item-edit=\"" + item.id + "\">Edit</button><button type=\"button\" class=\"btn danger\" data-item-delete=\"" + item.id + "\">Delete</button></div>" +
+                  "</li>"
                 );
               })
-              .join("")
-          : "<tr><td>" + ctx.escapeHtml(category.category) + "</td><td colspan=\"5\" class=\"empty-row\">No items in this category.</td></tr>";
-        return itemRows;
-      })
-      .join("");
+              .join("") + "</ul>"
+          : "<p class=\"muted\">No items in this category.</p>";
 
-    const categoryRows = categories
-      .map((category) => {
+        return "<article class=\"simple-group-card\"><h4>" + ctx.escapeHtml(category.category) + "</h4>" + itemsHtml + "</article>";
+      })
+      .join("")
+      : "<p class=\"empty-state\">No categories added yet.</p>";
+
+    const categoryRows = categories.length
+      ? categories.map((category) => {
         return (
-          "<tr>" +
-          "<td>" + ctx.escapeHtml(category.category) + "</td>" +
-          "<td>" + (category.items || []).length + "</td>" +
-          "<td><div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-category-edit=\"" + category.id + "\">Edit</button><button type=\"button\" class=\"btn danger\" data-category-delete=\"" + category.id + "\">Delete</button></div></td>" +
-          "</tr>"
+          "<li class=\"simple-row-item\">" +
+          "<div><p><strong>" + ctx.escapeHtml(category.category) + "</strong></p><p class=\"muted\">Items: " + (category.items || []).length + "</p></div>" +
+          "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-category-edit=\"" + category.id + "\">Edit</button><button type=\"button\" class=\"btn danger\" data-category-delete=\"" + category.id + "\">Delete</button></div>" +
+          "</li>"
         );
       })
-      .join("");
+      .join("")
+      : "<li class=\"empty-row\">No categories available.</li>";
 
     const historyRows = selectedYearHistory.length
       ? selectedYearHistory
           .map((entry) => {
             const when = entry.at ? new Date(entry.at).toLocaleString() : "Now";
-            return "<p><strong>" + ctx.escapeHtml(when) + "</strong> - " + ctx.escapeHtml(entry.message || "Updated") + "</p>";
+            return "<li><strong>" + ctx.escapeHtml(when) + "</strong> - " + ctx.escapeHtml(entry.message || "Updated") + "</li>";
           })
           .join("")
-      : "<p>No criteria changes recorded for this academic year.</p>";
-
-    const hubMenuHtml = renderCriteriaHubMenu(menuOpen);
-    const workspaceClass = "criteria-workspace" + (overlayMode ? " criteria-workspace-blurred" : "");
-    const overlayHtml = overlayMode ? renderCriteriaOverlayCard({
-      ctx: ctx,
-      overlayMode: overlayMode,
-      categories: categories,
-      categoryRows: categoryRows,
-      groupedRows: groupedRows,
-      categoryOptions: categoryOptions,
-      fixedSelected: fixedSelected,
-      countSelected: countSelected,
-      rangeSelected: rangeSelected,
-      negativeSelected: negativeSelected,
-      editingItem: editingItem,
-      editingCategory: editingCategory,
-      editingRangeRule: editingRangeRule,
-      showCategoryForm: showCategoryForm,
-      showCriteriaItemForm: showCriteriaItemForm
-    }) : "";
+      : "<li>No criteria changes recorded for this academic year.</li>";
 
     return (
-      "<section class=\"section-header criteria-header\"><div><h1>Criteria Management</h1><p class=\"muted\">Use Control for edit actions and View for lists. A focused overlay opens for each choice.</p></div>" + hubMenuHtml + "</section>" +
-      "<div class=\"" + workspaceClass + "\">" +
-        "<section class=\"cards-grid two-panel-grid\">" +
-          "<article class=\"panel\"><h3>Academic Year</h3><div class=\"field\"><label for=\"academic-year-select\">Select Session</label><select id=\"academic-year-select\">" + yearOptions + "</select></div>" +
-          "<div class=\"meta-list\">" + academicYearStatusRows + "</div></article>" +
-          "<article class=\"panel\"><h3>Quick Snapshot</h3><div class=\"meta-list\"><p><strong>Categories:</strong> " + categories.length + "</p><p><strong>Criteria Items:</strong> " + ctx.getAllCriteriaItems().length + "</p><p><strong>Focused Year:</strong> " + ctx.escapeHtml(ctx.state.selectedAcademicYear) + "</p></div></article>" +
-        "</section>" +
-        "<section class=\"cards-grid two-panel-grid\">" +
-          "<article class=\"panel\"><h3>Criteria by Category</h3><div class=\"table-wrap\"><table><thead><tr><th>Category</th><th>Item</th><th>Type</th><th>Max Marks</th><th>Marks / Rules</th><th>Actions</th></tr></thead><tbody>" + groupedRows + "</tbody></table></div></article>" +
-          "<article class=\"panel\"><h3>Category Hierarchy Controls</h3><div class=\"table-wrap\"><table><thead><tr><th>Criterion (Category)</th><th>Sub-criteria Count</th><th>Actions</th></tr></thead><tbody>" + categoryRows + "</tbody></table></div><div class=\"meta-list\"><p><strong>Rule:</strong> A category can be deleted only when it has no sub-criteria.</p></div></article>" +
-        "</section>" +
-        "<section class=\"panel\"><h3>Criteria History - " + ctx.escapeHtml(ctx.state.selectedAcademicYear) + "</h3><div class=\"meta-list\">" + historyRows + "</div></section>" +
-      "</div>" +
-      overlayHtml
+      "<section class=\"section-header\"><div><h1>Criteria Management</h1><p class=\"muted\">Add category, add item, and manage marks in one place.</p></div></section>" +
+      "<section class=\"cards-grid two-panel-grid\">" +
+      "<article class=\"panel\"><h3>Academic Year</h3><div class=\"field\"><label for=\"academic-year-select\">Select Session</label><select id=\"academic-year-select\">" + yearOptions + "</select></div><p class=\"muted\">Editing is allowed only for active year.</p></article>" +
+      "<article class=\"panel\"><h3>Snapshot</h3><div class=\"meta-list\"><p><strong>Categories:</strong> " + categories.length + "</p><p><strong>Total Items:</strong> " + ctx.getAllCriteriaItems().length + "</p><p><strong>Focused Year:</strong> " + ctx.escapeHtml(ctx.state.selectedAcademicYear) + "</p></div></article>" +
+      "</section>" +
+      "<section class=\"cards-grid two-panel-grid\">" +
+      "<article class=\"panel\"><h3>" + (editingCategory ? "Edit Category" : "Add Category") + "</h3><form id=\"category-form\" class=\"stack-form\" data-editing-category=\"" + (editingCategory ? editingCategory.id : "") + "\"><div class=\"field\"><label for=\"category-title\">Category Name</label><input id=\"category-title\" name=\"categoryTitle\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingCategory ? editingCategory.category : "") + "\" /></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingCategory ? "Update Category" : "Add Category") + "</button><button type=\"button\" id=\"cancel-category-edit\" class=\"btn ghost" + (editingCategory ? "" : " hidden") + "\">Cancel</button></div></form></article>" +
+      "<article class=\"panel\"><h3>" + (editingItem ? "Edit Item" : "Add Item") + "</h3><form id=\"criteria-item-form\" class=\"stack-form\" data-editing-item=\"" + (editingItem ? editingItem.id : "") + "\"><div class=\"field\"><label for=\"criteria-item-category\">Category Name</label><select id=\"criteria-item-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div><div class=\"field\"><label for=\"criteria-item-title\">Item Name</label><input id=\"criteria-item-title\" name=\"title\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingItem ? editingItem.title : "") + "\" /></div><div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + fixedSelected + ">Fixed</option><option value=\"count\"" + countSelected + ">Count</option><option value=\"range\"" + rangeSelected + ">Range</option></select></div><div class=\"field\"><label for=\"criteria-item-marks\">Marks</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div><div id=\"criteria-item-range-fields\" class=\"stack-form two-col" + (editingItem && editingItem.type === "range" ? "" : " hidden") + "\"><div class=\"field\"><label for=\"criteria-item-range-min\">Range Start</label><input id=\"criteria-item-range-min\" name=\"rangeMin\" type=\"number\" step=\"0.01\" value=\"" + (editingRangeRule && Number.isFinite(editingRangeRule.min) ? editingRangeRule.min : "") + "\" /></div><div class=\"field\"><label for=\"criteria-item-range-max\">Range End</label><input id=\"criteria-item-range-max\" name=\"rangeMax\" type=\"number\" step=\"0.01\" value=\"" + (editingRangeRule && Number.isFinite(editingRangeRule.max) ? editingRangeRule.max : "") + "\" /></div></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "Update Item" : "Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost" + (editingItem ? "" : " hidden") + "\">Cancel</button></div></form></article>" +
+      "</section>" +
+      "<section class=\"panel\"><h3>Grouped List</h3><div class=\"simple-group-wrap\">" + groupedListHtml + "</div></section>" +
+      "<section class=\"cards-grid two-panel-grid\">" +
+      "<article class=\"panel\"><h3>Category List</h3><ul class=\"simple-row-list\">" + categoryRows + "</ul><p class=\"muted\">A category can be deleted only when it has no items.</p></article>" +
+      "<article class=\"panel\"><h3>Recent Changes</h3><ul class=\"simple-list\">" + historyRows + "</ul></article>" +
+      "</section>"
     );
   }
 
   function handleClick(event, ctx) {
-    const openCategoryFormButton = event.target.closest("button[data-admin-criteria-action='open-category-form']");
-    if (openCategoryFormButton) {
-      ctx.state.criteriaMenuOpen = "controls";
-      ctx.state.criteriaOverlayMode = "edit-category";
-      ctx.state.showCategoryForm = true;
-      ctx.state.showCriteriaItemForm = false;
-      ctx.state.editingCategoryId = null;
-      ctx.state.editingCriteriaItemId = null;
-      ctx.renderPage();
-      return true;
-    }
-
-    const openItemFormButton = event.target.closest("button[data-admin-criteria-action='open-item-form']");
-    if (openItemFormButton) {
-      ctx.state.criteriaMenuOpen = "controls";
-      ctx.state.criteriaOverlayMode = "edit-criteria";
-      ctx.state.showCriteriaItemForm = true;
-      ctx.state.showCategoryForm = false;
-      ctx.state.editingCriteriaItemId = null;
-      ctx.state.editingCategoryId = null;
-      ctx.renderPage();
-      return true;
-    }
-
     const editItemButton = event.target.closest("button[data-item-edit]");
     if (editItemButton) {
-      ctx.state.criteriaOverlayMode = "edit-criteria";
       ctx.state.editingCriteriaItemId = Number(editItemButton.dataset.itemEdit);
-      ctx.state.showCriteriaItemForm = true;
-      ctx.state.showCategoryForm = false;
       ctx.state.editingCategoryId = null;
       ctx.renderPage();
       return true;
@@ -178,18 +115,13 @@ window.applyPageConfig({
     const cancelItemEdit = event.target.closest("#cancel-item-edit");
     if (cancelItemEdit) {
       ctx.state.editingCriteriaItemId = null;
-      ctx.state.showCriteriaItemForm = false;
-      ctx.state.criteriaOverlayMode = "";
       ctx.renderPage();
       return true;
     }
 
     const editCategoryButton = event.target.closest("button[data-category-edit]");
     if (editCategoryButton) {
-      ctx.state.criteriaOverlayMode = "edit-category";
       ctx.state.editingCategoryId = String(editCategoryButton.dataset.categoryEdit || "");
-      ctx.state.showCategoryForm = true;
-      ctx.state.showCriteriaItemForm = false;
       ctx.state.editingCriteriaItemId = null;
       ctx.renderPage();
       return true;
@@ -207,66 +139,8 @@ window.applyPageConfig({
     const cancelCategoryEdit = event.target.closest("#cancel-category-edit");
     if (cancelCategoryEdit) {
       ctx.state.editingCategoryId = null;
-      ctx.state.showCategoryForm = false;
-      ctx.state.criteriaOverlayMode = "";
       ctx.renderPage();
       return true;
-    }
-
-    const criteriaMenuToggle = event.target.closest("button[data-criteria-menu-toggle]");
-    if (criteriaMenuToggle) {
-      const menu = String(criteriaMenuToggle.dataset.criteriaMenuToggle || "");
-      ctx.state.criteriaMenuOpen = ctx.state.criteriaMenuOpen === menu ? "" : menu;
-      ctx.renderPage();
-      return true;
-    }
-
-    const criteriaWorkbenchAction = event.target.closest("button[data-criteria-workbench-action]");
-    if (criteriaWorkbenchAction) {
-      const action = String(criteriaWorkbenchAction.dataset.criteriaWorkbenchAction || "");
-      ctx.state.criteriaMenuOpen = "";
-
-      if (action === "close-overlay") {
-        ctx.state.criteriaOverlayMode = "";
-        ctx.state.showCategoryForm = false;
-        ctx.state.showCriteriaItemForm = false;
-        ctx.state.editingCategoryId = null;
-        ctx.state.editingCriteriaItemId = null;
-        ctx.renderPage();
-        return true;
-      }
-
-      if (action === "edit-category") {
-        ctx.state.criteriaOverlayMode = "edit-category";
-        ctx.state.showCategoryForm = true;
-        ctx.state.showCriteriaItemForm = false;
-        ctx.renderPage();
-        return true;
-      }
-
-      if (action === "edit-criteria") {
-        ctx.state.criteriaOverlayMode = "edit-criteria";
-        ctx.state.showCriteriaItemForm = true;
-        ctx.state.showCategoryForm = false;
-        ctx.renderPage();
-        return true;
-      }
-
-      if (action === "list-categories") {
-        ctx.state.criteriaOverlayMode = "list-categories";
-        ctx.state.showCategoryForm = false;
-        ctx.state.showCriteriaItemForm = false;
-        ctx.renderPage();
-        return true;
-      }
-
-      if (action === "list-criteria") {
-        ctx.state.criteriaOverlayMode = "list-criteria";
-        ctx.state.showCategoryForm = false;
-        ctx.state.showCriteriaItemForm = false;
-        ctx.renderPage();
-        return true;
-      }
     }
 
     return false;

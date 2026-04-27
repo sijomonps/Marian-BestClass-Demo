@@ -8,34 +8,30 @@ window.applyPageConfig({
     initializeUserUiState(ctx.state);
 
     const editingUser = ctx.state.editingUserId ? ctx.findUserById(ctx.state.editingUserId) : null;
-    const showForm = Boolean(ctx.state.showUserForm);
-    const users = getFilteredSortedUsers(ctx);
-    const filterValues = getFilterValues(ctx, ctx.state.userFilterType);
-    const roleOptions = renderRoleOptions(ctx, editingUser);
-    const selectedSort = String(ctx.state.userSortKey) + "-" + String(ctx.state.userSortDirection);
+    const showForm = Boolean(ctx.state.showUserForm || editingUser);
+    const managedUsers = (ctx.users || [])
+      .filter((user) => {
+        const role = ctx.normalizeUserRole(user.role);
+        return role === "student" || role === "teacher" || role === "evaluator";
+      })
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
-    const userRows = users.length
-      ? users.map((user) => renderUserRow(user, ctx)).join("")
-      : "<tr><td colspan=\"6\" class=\"empty-row\">No users match the current search/filter.</td></tr>";
+    const userRows = managedUsers.length
+      ? managedUsers.map((user) => renderUserRow(user, ctx)).join("")
+      : "<tr><td colspan=\"4\" class=\"empty-row\">No users available.</td></tr>";
 
     const formHtml = showForm
       ? renderUserForm(ctx, editingUser)
       : "";
 
     return (
-      "<section class=\"section-header\"><div><h1>User Management</h1><p class=\"muted\">Add users, assign a single role, and safely control account status.</p></div></section>" +
+      "<section class=\"section-header\"><div><h1>User Management</h1><p class=\"muted\">Add users and assign role and department.</p></div></section>" +
       "<section class=\"panel\">" +
       "<div class=\"panel-head\">" +
-      "<div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-admin-user-action=\"open-add-form\">+ Add User</button></div>" +
-      "<div class=\"button-row\">" +
-      "<div class=\"field\"><label for=\"admin-user-search\">Search</label><input id=\"admin-user-search\" type=\"text\" placeholder=\"Name or email\" value=\"" + ctx.escapeAttribute(ctx.state.userSearchQuery) + "\" /></div>" +
-      "<div class=\"field\"><label for=\"admin-user-filter-type\">Filter</label><select id=\"admin-user-filter-type\"><option value=\"all\"" + (ctx.state.userFilterType === "all" ? " selected" : "") + ">All</option><option value=\"role\"" + (ctx.state.userFilterType === "role" ? " selected" : "") + ">Role</option><option value=\"department\"" + (ctx.state.userFilterType === "department" ? " selected" : "") + ">Department / Class</option><option value=\"status\"" + (ctx.state.userFilterType === "status" ? " selected" : "") + ">Status</option></select></div>" +
-      "<div class=\"field\"><label for=\"admin-user-filter-value\">Value</label><select id=\"admin-user-filter-value\">" + renderFilterValueOptions(filterValues, ctx.state.userFilterValue, ctx) + "</select></div>" +
-      "<div class=\"field\"><label for=\"admin-user-sort\">Sort</label><select id=\"admin-user-sort\"><option value=\"name-asc\"" + (selectedSort === "name-asc" ? " selected" : "") + ">Name (A-Z)</option><option value=\"name-desc\"" + (selectedSort === "name-desc" ? " selected" : "") + ">Name (Z-A)</option><option value=\"role-asc\"" + (selectedSort === "role-asc" ? " selected" : "") + ">Role (A-Z)</option><option value=\"role-desc\"" + (selectedSort === "role-desc" ? " selected" : "") + ">Role (Z-A)</option></select></div>" +
-      "</div>" +
+        "<div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-admin-user-action=\"open-add-form\">Add User</button></div>" +
       "</div>" +
       formHtml +
-      "<div class=\"table-wrap compact-table\"><table><thead><tr><th>Name</th><th>Email / User ID</th><th>Role</th><th>Department / Class</th><th>Status</th><th>Actions</th></tr></thead><tbody>" + userRows + "</tbody></table></div>" +
+        "<div class=\"table-wrap compact-table\"><table><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Actions</th></tr></thead><tbody>" + userRows + "</tbody></table></div>" +
       "</section>"
     );
   }
@@ -43,19 +39,17 @@ window.applyPageConfig({
   function renderUserForm(ctx, editingUser) {
     const heading = editingUser ? "Edit User" : "Add User";
     const submitLabel = editingUser ? "Save Changes" : "Create User";
-    const roleChangeNote = editingUser
-      ? "<p class=\"muted\"><strong>Warning:</strong> Role changes affect permissions. A confirmation is required before applying.</p>"
-      : "";
+    const departmentSuggestions = (ctx.departments || [])
+      .map((item) => "<option value=\"" + ctx.escapeAttribute(item) + "\"></option>")
+      .join("");
 
     return (
       "<article class=\"panel\">" +
       "<h3>" + heading + "</h3>" +
-      roleChangeNote +
       "<form id=\"admin-user-form\" class=\"stack-form two-col\" data-editing-user=\"" + (editingUser ? editingUser.id : "") + "\">" +
       "<div class=\"field\"><label for=\"admin-user-name\">Name</label><input id=\"admin-user-name\" name=\"name\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingUser ? editingUser.name : "") + "\" /></div>" +
-      "<div class=\"field\"><label for=\"admin-user-email\">Email / Username</label><input id=\"admin-user-email\" name=\"email\" type=\"email\" required value=\"" + ctx.escapeAttribute(editingUser ? editingUser.email : "") + "\" /></div>" +
       "<div class=\"field\"><label for=\"admin-user-role\">Role</label><select id=\"admin-user-role\" name=\"role\" required>" + renderRoleOptions(ctx, editingUser) + "</select></div>" +
-      "<div class=\"field\"><label for=\"admin-user-department\">Department / Class</label><input id=\"admin-user-department\" name=\"department\" type=\"text\" value=\"" + ctx.escapeAttribute(editingUser ? editingUser.department : "") + "\" /></div>" +
+      "<div class=\"field\"><label for=\"admin-user-department\">Department</label><input id=\"admin-user-department\" name=\"department\" type=\"text\" list=\"admin-department-list\" required value=\"" + ctx.escapeAttribute(editingUser ? editingUser.department : "") + "\" /><datalist id=\"admin-department-list\">" + departmentSuggestions + "</datalist></div>" +
       "<div class=\"full-span button-row\"><button type=\"submit\" class=\"btn primary\">" + submitLabel + "</button><button id=\"admin-user-cancel\" type=\"button\" class=\"btn ghost\">Cancel</button></div>" +
       "</form>" +
       "</article>"
@@ -63,11 +57,6 @@ window.applyPageConfig({
   }
 
   function renderUserRow(user, ctx) {
-    const isActive = user.status === "Active";
-    const statusClass = isActive ? "status-approved" : "status-rejected";
-    const toggleLabel = isActive ? "Deactivate" : "Activate";
-    const toggleClass = isActive ? "warn" : "success";
-    const activityCount = ctx.getUserActivityCount(user);
     const canDelete = ctx.canDeleteUser(user);
     const deleteLabel = canDelete ? "Delete" : "Delete Blocked";
     const deleteDisabled = canDelete ? "" : " disabled";
@@ -75,11 +64,9 @@ window.applyPageConfig({
     return (
       "<tr>" +
       "<td>" + ctx.escapeHtml(user.name) + "</td>" +
-      "<td>" + ctx.escapeHtml(user.email) + "</td>" +
       "<td>" + ctx.escapeHtml(ctx.getRoleLabel(user.role)) + "</td>" +
       "<td>" + ctx.escapeHtml(user.department || "-") + "</td>" +
-      "<td><span class=\"status-pill " + statusClass + "\">" + ctx.escapeHtml(user.status) + "</span></td>" +
-      "<td><div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-user-edit=\"" + user.id + "\">Edit</button><button type=\"button\" class=\"btn " + toggleClass + "\" data-user-toggle-status=\"" + user.id + "\">" + toggleLabel + "</button><button type=\"button\" class=\"btn danger\" data-user-delete=\"" + user.id + "\" title=\"" + (canDelete ? "Delete user" : "Blocked: user has " + activityCount + " activity records") + "\"" + deleteDisabled + ">" + deleteLabel + "</button></div></td>" +
+      "<td><div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-user-edit=\"" + user.id + "\">Edit</button><button type=\"button\" class=\"btn danger\" data-user-delete=\"" + user.id + "\"" + deleteDisabled + ">" + deleteLabel + "</button></div></td>" +
       "</tr>"
     );
   }
@@ -106,35 +93,6 @@ window.applyPageConfig({
       ctx.state.editingUserId = Number(editButton.dataset.userEdit);
       ctx.state.showUserForm = true;
       ctx.renderPage();
-      return true;
-    }
-
-    const toggleStatusButton = event.target.closest("button[data-user-toggle-status]");
-    if (toggleStatusButton) {
-      const userId = Number(toggleStatusButton.dataset.userToggleStatus);
-      const user = ctx.findUserById(userId);
-      if (!user) {
-        ctx.showToast("User not found.", "error");
-        return true;
-      }
-
-      if (Number(ctx.state.currentUserId) === Number(user.id) && user.status === "Active") {
-        ctx.showToast("You cannot deactivate the currently logged-in account.", "warning");
-        return true;
-      }
-
-      const nextStatus = user.status === "Active" ? "Inactive" : "Active";
-      const actionLabel = nextStatus === "Inactive" ? "Deactivate User" : "Activate User";
-      const dialogMessage = nextStatus === "Inactive"
-        ? "Deactivate this user? They will not be able to log in until reactivated."
-        : "Activate this user account now?";
-
-      ctx.openConfirmModal(actionLabel, dialogMessage, function () {
-        user.status = nextStatus;
-        ctx.addRecentActivity(nextStatus + " user: " + user.name + " (" + user.email + ")");
-        ctx.showToast("User status updated to " + nextStatus + ".", "success");
-        ctx.renderPage();
-      });
       return true;
     }
 
@@ -193,17 +151,29 @@ window.applyPageConfig({
     const editingUser = editingId ? ctx.findUserById(editingId) : null;
 
     const name = String(formData.get("name") || "").trim();
-    const email = String(formData.get("email") || "").trim().toLowerCase();
     const role = ctx.normalizeUserRole(formData.get("role"));
     const department = String(formData.get("department") || "").trim();
+    const email = editingUser
+      ? String(editingUser.email || "").trim().toLowerCase()
+      : buildGeneratedEmail(name, role, ctx.users);
 
-    if (!name || !email) {
-      ctx.showToast("Name and email are required.", "error");
+    if (!name) {
+      ctx.showToast("Name is required.", "error");
       return true;
     }
 
     if (!role) {
       ctx.showToast("Role is required.", "error");
+      return true;
+    }
+
+    if (["student", "teacher", "evaluator"].indexOf(role) === -1) {
+      ctx.showToast("Role must be Student, Class Teacher, or Evaluation Team.", "error");
+      return true;
+    }
+
+    if (!department) {
+      ctx.showToast("Department is required.", "error");
       return true;
     }
 
@@ -231,6 +201,9 @@ window.applyPageConfig({
       };
 
       ctx.users.push(newUser);
+      if (department) {
+        ctx.ensureDepartmentExists(department);
+      }
       ctx.state.showUserForm = false;
       ctx.state.editingUserId = null;
       ctx.addRecentActivity("Created user: " + newUser.name + " (" + ctx.getRoleLabel(newUser.role) + ")");
@@ -244,6 +217,10 @@ window.applyPageConfig({
       editingUser.email = email;
       editingUser.role = role;
       editingUser.department = department;
+
+      if (department) {
+        ctx.ensureDepartmentExists(department);
+      }
 
       ctx.state.showUserForm = false;
       ctx.state.editingUserId = null;
@@ -266,35 +243,6 @@ window.applyPageConfig({
   }
 
   function handleChange(event, ctx) {
-    const target = event.target;
-
-    if (target.id === "admin-user-search") {
-      ctx.state.userSearchQuery = String(target.value || "");
-      ctx.renderPage();
-      return true;
-    }
-
-    if (target.id === "admin-user-filter-type") {
-      ctx.state.userFilterType = String(target.value || "all");
-      ctx.state.userFilterValue = "all";
-      ctx.renderPage();
-      return true;
-    }
-
-    if (target.id === "admin-user-filter-value") {
-      ctx.state.userFilterValue = String(target.value || "all");
-      ctx.renderPage();
-      return true;
-    }
-
-    if (target.id === "admin-user-sort") {
-      const parts = String(target.value || "name-asc").split("-");
-      ctx.state.userSortKey = parts[0] || "name";
-      ctx.state.userSortDirection = parts[1] || "asc";
-      ctx.renderPage();
-      return true;
-    }
-
     return false;
   }
 
@@ -304,21 +252,6 @@ window.applyPageConfig({
     }
     if (!Number.isFinite(Number(state.editingUserId))) {
       state.editingUserId = null;
-    }
-    if (typeof state.userSearchQuery !== "string") {
-      state.userSearchQuery = "";
-    }
-    if (["all", "role", "department", "status"].indexOf(state.userFilterType) === -1) {
-      state.userFilterType = "all";
-    }
-    if (typeof state.userFilterValue !== "string") {
-      state.userFilterValue = "all";
-    }
-    if (["name", "role"].indexOf(state.userSortKey) === -1) {
-      state.userSortKey = "name";
-    }
-    if (["asc", "desc"].indexOf(state.userSortDirection) === -1) {
-      state.userSortDirection = "asc";
     }
   }
 
@@ -377,12 +310,34 @@ window.applyPageConfig({
 
   function renderRoleOptions(ctx, editingUser) {
     const currentRole = editingUser ? editingUser.role : "";
+    const allowedRoles = ["student", "teacher", "evaluator"];
+
     return ctx.adminManagedRoleOptions
+      .filter((roleOption) => allowedRoles.indexOf(String(roleOption.value)) > -1)
       .map((roleOption) => {
         const selected = roleOption.value === currentRole ? " selected" : "";
         return "<option value=\"" + ctx.escapeAttribute(roleOption.value) + "\"" + selected + ">" + ctx.escapeHtml(roleOption.label) + "</option>";
       })
       .join("");
+  }
+
+  function buildGeneratedEmail(name, role, users) {
+    const rolePrefix = String(role || "user").toLowerCase();
+    const base = String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ".")
+      .replace(/^\.+|\.+$/g, "") || rolePrefix;
+
+    let candidate = base + "@college.edu";
+    let counter = 1;
+
+    while (users.some((item) => String(item.email || "").toLowerCase() === candidate)) {
+      counter += 1;
+      candidate = base + counter + "@college.edu";
+    }
+
+    return candidate;
   }
 
   function getFilterValues(ctx, filterType) {

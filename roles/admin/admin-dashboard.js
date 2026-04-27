@@ -5,116 +5,44 @@ window.applyPageConfig({
 
 (function initAdminDashboardModule() {
   function renderDashboard(ctx) {
-    initializeCreateYearUiState(ctx.state);
-
     const yearSubmissions = typeof ctx.getSubmissionsForYear === "function"
       ? ctx.getSubmissionsForYear(ctx.state.selectedAcademicYear)
       : ctx.submissions;
-    const metrics = ctx.buildSummaryMetrics(yearSubmissions);
-    const activeYear = ctx.getActiveAcademicYear();
-    const criteriaItems = ctx.getAllCriteriaItems();
-    const selectedYearClassCount = getClassCountForSubmissions(yearSubmissions, ctx.students);
-    const totalUsers = ctx.students.length;
-    const usersByRole = ["Student", "Class Teacher", "Evaluator", "Admin", "HOD / IQAC"];
 
-    const roleSummary = usersByRole
-      .map((role) => "<p><strong>" + role + ":</strong> " + (role === "Student" ? totalUsers : 1) + "</p>")
-      .join("");
-
-    const missingMarksConfigs = criteriaItems.filter((item) => {
-      if (item.type === "range") {
-        return !(item.rules || []).length;
-      }
-      return !Number.isFinite(item.marks);
+    const totalStudents = (ctx.students || []).length;
+    const totalSubmissions = yearSubmissions.length;
+    const pendingVerifications = yearSubmissions.filter((item) => {
+      const status = String(item.status || "").toLowerCase();
+      return status === "pending" || status.indexOf("correction") > -1;
     }).length;
+    const submissionStatusClass = ctx.state.submissionOpen ? "status-approved" : "status-rejected";
+    const evaluationStatusClass = ctx.state.evaluationOpen ? "status-approved" : "status-rejected";
+    const submissionStatusLabel = ctx.state.submissionOpen ? "ON" : "OFF";
+    const evaluationStatusLabel = ctx.state.evaluationOpen ? "ON" : "OFF";
+    const activeYear = ctx.getActiveAcademicYear();
 
-    const systemOverview = buildSystemOverviewMetrics(yearSubmissions);
+    const quickTips = [
+      "Use Criteria Management to add category, item, marks, and type.",
+      "Use User Management to add Student, Teacher, and Evaluator accounts.",
+      "Use Department Management to keep the department list updated.",
+      "Use Settings to toggle submission/evaluation and choose academic year."
+    ];
 
-    const classPerformance = ctx.buildClassPerformance().sort((a, b) => b.totalScore - a.totalScore);
-    const topClass = classPerformance[0];
-    const averageScore = classPerformance.length
-      ? classPerformance.reduce((sum, item) => sum + item.totalScore, 0) / classPerformance.length
-      : 0;
-
-    const statusChipClass = ctx.getSystemModeStatusClass(ctx.state.systemMode);
-    const statusLabel = ctx.getSystemModeLabel(ctx.state.systemMode);
-    const lockActionLabel = ctx.state.systemMode === "locked" ? "Unlock System" : "Lock System";
-    const yearActionLabel = activeYear && activeYear === ctx.state.selectedAcademicYear
-      ? "Deactivate Selected Year"
-      : "Activate Selected Year";
-    const criteriaLastUpdatedText = ctx.state.criteriaLastUpdatedAt
-      ? new Date(ctx.state.criteriaLastUpdatedAt).toLocaleString()
-      : "Seed data";
-
-    const availableYears = getAvailableAcademicYears(ctx, activeYear);
-
-    const selectedYearOptions = availableYears
-      .map((year) => {
-        const selected = year === ctx.state.selectedAcademicYear ? " selected" : "";
-        return "<option value=\"" + year + "\"" + selected + ">" + ctx.escapeHtml(year) + "</option>";
-      })
-      .join("");
-
-    const nextYearOptions = getSuggestedAcademicYears(availableYears, 3)
-      .map((year) => {
-        const selected = year === ctx.state.pendingAcademicYear ? " selected" : "";
-        return "<option value=\"" + year + "\"" + selected + ">" + ctx.escapeHtml(year) + "</option>";
-      })
-      .join("");
-
-    const createYearPanelHtml = ctx.state.showCreateYearField
-      ? "<div class=\"field\"><label for=\"admin-new-year-select\">Select New Academic Year</label><select id=\"admin-new-year-select\"><option value=\"\">Select year</option>" + nextYearOptions + "</select></div>" +
-        (ctx.state.pendingAcademicYear
-          ? "<div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-admin-action=\"confirm-create-year\">Confirm New Year</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"cancel-create-year\">Cancel</button></div>"
-          : "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-admin-action=\"cancel-create-year\">Cancel</button></div>")
-      : "";
-
-    const alerts = [];
-    if (!activeYear) {
-      alerts.push("No academic year is currently active. Data updates are blocked.");
-    }
-    if (missingMarksConfigs > 0) {
-      alerts.push(missingMarksConfigs + " criteria items need marks/rule configuration.");
-    }
-    if (metrics.pending > 0) {
-      alerts.push(metrics.pending + " submissions are still pending verification.");
-    }
-    if (ctx.state.systemMode === "locked") {
-      alerts.push("System is locked. Criteria and workflow edits are restricted.");
-    }
-
-    const alertsHtml = alerts.length
-      ? alerts.map((item) => "<p>⚠ " + ctx.escapeHtml(item) + "</p>").join("")
-      : "<p>All core checks look healthy right now.</p>";
-
-    const activityHtml = ctx.state.recentActivity.length
-      ? ctx.state.recentActivity.slice(0, 5)
-          .map((item) => "<p><strong>" + ctx.escapeHtml(item.time) + "</strong> - " + ctx.escapeHtml(item.message) + "</p>")
-          .join("")
-      : "<p>No recent admin activity.</p>";
+    const tipRows = quickTips.map((tip) => "<li>" + ctx.escapeHtml(tip) + "</li>").join("");
 
     return (
-      "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Control panel for live system state and instant admin actions.</p></div></section>" +
-      "<section class=\"cards-grid two-panel-grid\">" +
-      "<article class=\"panel\"><h3>Academic Year Control</h3><div class=\"meta-list\"><p><strong>Active Year:</strong> " + ctx.escapeHtml(activeYear || "None") + "</p></div><div class=\"field\"><label for=\"academic-year-select\">Select Existing Year</label><select id=\"academic-year-select\">" + selectedYearOptions + "</select></div><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-admin-action=\"create-year\">Create New Year</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"toggle-year-active\">" + ctx.escapeHtml(yearActionLabel) + "</button></div>" + createYearPanelHtml + "</article>" +
-      "<article class=\"panel\"><h3>System State Control</h3><div class=\"meta-list\"><p><strong>Status:</strong> <span class=\"status-pill " + statusChipClass + "\">" + ctx.escapeHtml(statusLabel) + "</span></p><p><strong>Rules:</strong> Only active year is editable.</p></div><div class=\"button-row\"><button type=\"button\" class=\"btn danger\" data-admin-action=\"toggle-lock\">" + ctx.escapeHtml(lockActionLabel) + "</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"set-evaluation-mode\">Set Evaluation Ongoing</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"set-setup-mode\">Set Setup Mode</button></div></article>" +
+      "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Simple overview for daily admin work.</p></div></section>" +
+      "<section class=\"cards-grid stats-grid\">" +
+      "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Students</p></div><h3>" + totalStudents + "</h3></article>" +
+      "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Submissions</p></div><h3>" + totalSubmissions + "</h3><p class=\"muted\">Academic Year " + ctx.escapeHtml(ctx.state.selectedAcademicYear) + "</p></article>" +
+      "<article class=\"stat-card\"><div class=\"stat-head\"><p>Pending Verifications</p></div><h3>" + pendingVerifications + "</h3></article>" +
+      "<article class=\"stat-card\"><div class=\"stat-head\"><p>Submission Status</p></div><h3><span class=\"status-pill " + submissionStatusClass + "\">" + submissionStatusLabel + "</span></h3></article>" +
       "</section>" +
       "<section class=\"cards-grid two-panel-grid\">" +
-      "<article class=\"panel\"><h3>Quick Actions</h3><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-page-jump=\"criteria\">Manage Criteria</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"manage-users\">Manage Users</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"open-reports\">Reports</button></div></article>" +
-      "<article class=\"panel\"><h3>Criteria Snapshot</h3><div class=\"meta-list\"><p><strong>Total Criteria:</strong> " + criteriaItems.length + "</p><p><strong>Missing Configurations:</strong> " + missingMarksConfigs + "</p><p><strong>Last Updated:</strong> " + ctx.escapeHtml(criteriaLastUpdatedText) + "</p></div></article>" +
+      "<article class=\"panel\"><h3>Quick Actions</h3><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-page-jump=\"criteria\">Criteria Management</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"manage-users\">User Management</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"manage-departments\">Department Management</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"open-settings\">Settings</button></div></article>" +
+      "<article class=\"panel\"><h3>System Status</h3><div class=\"meta-list\"><p><strong>Active Academic Year:</strong> " + ctx.escapeHtml(activeYear || "Not set") + "</p><p><strong>Submission:</strong> <span class=\"status-pill " + submissionStatusClass + "\">" + submissionStatusLabel + "</span></p><p><strong>Evaluation:</strong> <span class=\"status-pill " + evaluationStatusClass + "\">" + evaluationStatusLabel + "</span></p></div></article>" +
       "</section>" +
-      ctx.renderDashboardCards(metrics) +
-      "<section class=\"cards-grid two-panel-grid\">" +
-      renderSystemOverviewSection(systemOverview, selectedYearClassCount, ctx.state.selectedAcademicYear, ctx) +
-      "<article class=\"panel\"><h3>User Management Snapshot</h3><div class=\"meta-list\"><p><strong>Total Users:</strong> " + totalUsers + "</p>" + roleSummary + "</div></article>" +
-      "</section>" +
-      "<section class=\"cards-grid two-panel-grid\">" +
-      "<article class=\"panel\"><h3>Pending Actions / Alerts</h3><div class=\"meta-list\">" + alertsHtml + "</div></article>" +
-      "<article class=\"panel\"><h3>Quick Analytics Snapshot</h3><div class=\"meta-list\"><p><strong>Top Performing Class:</strong> " + ctx.escapeHtml(topClass ? topClass.className : "N/A") + "</p><p><strong>Average Class Score:</strong> " + averageScore.toFixed(1) + "</p><p><strong>Evaluation Progress:</strong> " + systemOverview.evaluatedPercent.toFixed(1) + "%</p></div></article>" +
-      "</section>" +
-      "<section class=\"panel\"><h3>Recent Activity</h3><div class=\"meta-list\">" + activityHtml + "</div></section>" +
-      ctx.renderStatusProgress("Workflow Status", metrics) +
-      "<section class=\"chart-card\"><h3>System Snapshot</h3><div class=\"meta-list\"><p><strong>Total Categories:</strong> " + ctx.criteriaCatalog.length + "</p><p><strong>Total Criteria Items:</strong> " + ctx.getAllCriteriaItems().length + "</p><p><strong>Active Academic Year:</strong> " + ctx.escapeHtml(activeYear || "None") + "</p></div></section>"
+      "<section class=\"panel\"><h3>Beginner Notes</h3><ul class=\"simple-list\">" + tipRows + "</ul></section>"
     );
   }
 
@@ -209,94 +137,34 @@ window.applyPageConfig({
   }
 
   function handleAction(action, ctx) {
-    if (action === "create-year") {
-      ctx.state.showCreateYearField = true;
-      ctx.state.pendingAcademicYear = "";
-      ctx.renderPage();
-      return true;
-    }
-
-    if (action === "confirm-create-year") {
-      const yearInput = String(ctx.state.pendingAcademicYear || "").trim();
-      if (!yearInput) {
-        ctx.showToast("Please select a year to continue.", "warning");
-        return true;
-      }
-      ctx.createAcademicYearEntry(yearInput);
-      ctx.state.showCreateYearField = false;
-      ctx.state.pendingAcademicYear = "";
-      return true;
-    }
-
-    if (action === "cancel-create-year") {
-      ctx.state.showCreateYearField = false;
-      ctx.state.pendingAcademicYear = "";
-      ctx.renderPage();
-      return true;
-    }
-
-    if (action === "toggle-year-active") {
-      const activeYear = ctx.getActiveAcademicYear();
-      if (activeYear && activeYear === ctx.state.selectedAcademicYear) {
-        ctx.deactivateActiveAcademicYear();
-        ctx.addRecentActivity("Deactivated academic year: " + activeYear);
-        ctx.showToast("Academic year " + activeYear + " is now inactive.", "info");
-      } else {
-        ctx.setActiveAcademicYear(ctx.state.selectedAcademicYear);
-        ctx.addRecentActivity("Activated academic year: " + ctx.state.selectedAcademicYear);
-        ctx.showToast("Academic year " + ctx.state.selectedAcademicYear + " is now active.", "success");
-      }
-      ctx.renderTopbar();
-      ctx.renderPage();
-      return true;
-    }
-
-    if (action === "toggle-lock") {
-      const nextMode = ctx.state.systemMode === "locked" ? "setup" : "locked";
-      const dialogTitle = nextMode === "locked" ? "Confirm Lock System" : "Confirm Unlock System";
-      const dialogMessage = nextMode === "locked"
-        ? "Lock system updates now? This will block add/edit/delete operations until you unlock."
-        : "Unlock system updates now? This will allow add/edit/delete operations again.";
-
-      if (typeof ctx.openConfirmModal === "function") {
-        ctx.openConfirmModal(dialogTitle, dialogMessage, function () {
-          ctx.state.systemMode = nextMode;
-          ctx.addRecentActivity("System state changed to " + ctx.getSystemModeLabel(nextMode));
-          ctx.showToast("System state is now " + ctx.getSystemModeLabel(nextMode) + ".", "info");
-          ctx.renderPage();
-        });
-      } else {
-        ctx.state.systemMode = nextMode;
-        ctx.addRecentActivity("System state changed to " + ctx.getSystemModeLabel(nextMode));
-        ctx.showToast("System state is now " + ctx.getSystemModeLabel(nextMode) + ".", "info");
-        ctx.renderPage();
-      }
-      return true;
-    }
-
-    if (action === "set-evaluation-mode") {
-      ctx.state.systemMode = "evaluation";
-      ctx.addRecentActivity("System state changed to Evaluation Ongoing");
-      ctx.showToast("System state set to Evaluation Ongoing.", "info");
-      ctx.renderPage();
-      return true;
-    }
-
-    if (action === "set-setup-mode") {
-      ctx.state.systemMode = "setup";
-      ctx.addRecentActivity("System state changed to Setup Mode");
-      ctx.showToast("System state set to Setup Mode.", "info");
-      ctx.renderPage();
-      return true;
-    }
-
     if (action === "manage-users") {
       ctx.navigateToPage("users");
       return true;
     }
 
-    if (action === "open-reports") {
-      ctx.showToast("Reports shortcut registered. Wire to export and ranking module next.", "info");
+    if (action === "manage-departments") {
+      ctx.navigateToPage("departments");
+      return true;
+    }
+
+    if (action === "open-settings") {
+      ctx.navigateToPage("settings");
+      return true;
+    }
+
+    if (action === "toggle-submission") {
+      ctx.state.submissionOpen = !ctx.state.submissionOpen;
+      ctx.addRecentActivity("Submission status set to " + (ctx.state.submissionOpen ? "ON" : "OFF"));
+      ctx.showToast("Submission is now " + (ctx.state.submissionOpen ? "ON" : "OFF") + ".", "info");
+      ctx.renderPage();
+      return true;
+    }
+
+    if (action === "toggle-evaluation") {
+      ctx.state.evaluationOpen = !ctx.state.evaluationOpen;
+      ctx.addRecentActivity("Evaluation status set to " + (ctx.state.evaluationOpen ? "ON" : "OFF"));
+      ctx.showToast("Evaluation is now " + (ctx.state.evaluationOpen ? "ON" : "OFF") + ".", "info");
+      ctx.renderPage();
       return true;
     }
 
@@ -304,14 +172,7 @@ window.applyPageConfig({
   }
 
   function handleChange(event, ctx) {
-    const target = event.target;
-    if (target.id !== "admin-new-year-select") {
-      return false;
-    }
-
-    ctx.state.pendingAcademicYear = String(target.value || "").trim();
-    ctx.renderPage();
-    return true;
+    return false;
   }
 
   function getSuggestedAcademicYears(existingYears, count) {

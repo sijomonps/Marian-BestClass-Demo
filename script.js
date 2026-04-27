@@ -28,9 +28,11 @@ const roleConfig = {
     label: "Admin",
     heading: "Admin Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "◉" },
-      { page: "criteria", label: "Criteria Management", icon: "⚙" },
-      { page: "users", label: "User Management", icon: "👥" }
+      { page: "dashboard", label: "Dashboard", icon: "D" },
+      { page: "criteria", label: "Criteria Management", icon: "C" },
+      { page: "users", label: "User Management", icon: "U" },
+      { page: "departments", label: "Department Management", icon: "DP" },
+      { page: "settings", label: "Settings", icon: "S" }
     ]
   },
   hod: {
@@ -51,7 +53,8 @@ const adminManagedRoleOptions = [
   { value: "admin", label: "Admin" }
 ];
 
-let academicYears = ["2025-2026", "2024-2025", "2023-2024"];
+const defaultAcademicYears = ["2025-2026", "2024-2025", "2023-2024"];
+let academicYears = defaultAcademicYears.slice();
 
 function createAcademicYearState(years, activeYear) {
   const defaultActiveYear = years.includes(activeYear) ? activeYear : years[0] || "";
@@ -89,9 +92,12 @@ const state = {
   selectedAcademicYear: academicYears[0],
   academicYearState: createAcademicYearState(academicYears, academicYears[0]),
   activeAcademicYear: academicYears[0],
+  submissionOpen: true,
+  evaluationOpen: true,
   systemMode: "setup",
   criteriaLastUpdatedAt: null,
   recentActivity: [],
+  departments: [],
   evaluatorView: "departments",
   evaluatorDepartment: "",
   evaluatorStudentId: null,
@@ -110,6 +116,8 @@ const state = {
   criteriaByYear: {},
   criteriaHistoryByYear: {}
 };
+
+state.departments = buildDepartmentOptionsFromUsers(users);
 
 initializeYearScopedCriteriaStores();
 
@@ -573,6 +581,10 @@ function renderPage() {
       content = renderAdminCriteriaPage();
     } else if (state.activePage === "users") {
       content = renderAdminUserManagementPage();
+    } else if (state.activePage === "departments") {
+      content = renderAdminDepartmentManagementPage();
+    } else if (state.activePage === "settings") {
+      content = renderAdminSettingsPage();
     } else {
       content = renderAdminDashboard();
     }
@@ -1239,6 +1251,26 @@ function renderAdminUserManagementPage() {
   );
 }
 
+function renderAdminDepartmentManagementPage() {
+  if (window.adminDepartmentManagementModule && typeof window.adminDepartmentManagementModule.renderDepartmentManagementPage === "function") {
+    return window.adminDepartmentManagementModule.renderDepartmentManagementPage(getAdminDepartmentContext());
+  }
+
+  return (
+    "<section class=\"section-header\"><div><h1>Department Management</h1><p class=\"muted\">Department management module is not available in this page context.</p></div></section>"
+  );
+}
+
+function renderAdminSettingsPage() {
+  if (window.adminSettingsModule && typeof window.adminSettingsModule.renderSettingsPage === "function") {
+    return window.adminSettingsModule.renderSettingsPage(getAdminSettingsContext());
+  }
+
+  return (
+    "<section class=\"section-header\"><div><h1>Settings</h1><p class=\"muted\">Settings module is not available in this page context.</p></div></section>"
+  );
+}
+
 function renderHodDashboard() {
   const performance = buildClassPerformance();
   const metrics = {
@@ -1324,6 +1356,20 @@ function handlePageClick(event) {
   if (state.currentRole === "admin" && window.adminUserManagementModule && typeof window.adminUserManagementModule.handleClick === "function") {
     const handledAdminUserClick = window.adminUserManagementModule.handleClick(event, getAdminUserManagementContext());
     if (handledAdminUserClick) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminDepartmentManagementModule && typeof window.adminDepartmentManagementModule.handleClick === "function") {
+    const handledAdminDepartmentClick = window.adminDepartmentManagementModule.handleClick(event, getAdminDepartmentContext());
+    if (handledAdminDepartmentClick) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminSettingsModule && typeof window.adminSettingsModule.handleClick === "function") {
+    const handledAdminSettingsClick = window.adminSettingsModule.handleClick(event, getAdminSettingsContext());
+    if (handledAdminSettingsClick) {
       return;
     }
   }
@@ -1414,6 +1460,20 @@ function handlePageSubmit(event) {
     }
   }
 
+  if (state.currentRole === "admin" && window.adminDepartmentManagementModule && typeof window.adminDepartmentManagementModule.handleSubmit === "function") {
+    const handledAdminDepartmentSubmit = window.adminDepartmentManagementModule.handleSubmit(event, getAdminDepartmentContext());
+    if (handledAdminDepartmentSubmit) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminSettingsModule && typeof window.adminSettingsModule.handleSubmit === "function") {
+    const handledAdminSettingsSubmit = window.adminSettingsModule.handleSubmit(event, getAdminSettingsContext());
+    if (handledAdminSettingsSubmit) {
+      return;
+    }
+  }
+
   if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleSubmit === "function") {
     const handledAdminSubmit = window.adminCriteriaModule.handleSubmit(event, getAdminCriteriaContext());
     if (handledAdminSubmit) {
@@ -1460,6 +1520,20 @@ function handlePageChange(event) {
     }
   }
 
+  if (state.currentRole === "admin" && window.adminDepartmentManagementModule && typeof window.adminDepartmentManagementModule.handleChange === "function") {
+    const handledAdminDepartmentChange = window.adminDepartmentManagementModule.handleChange(event, getAdminDepartmentContext());
+    if (handledAdminDepartmentChange) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminSettingsModule && typeof window.adminSettingsModule.handleChange === "function") {
+    const handledAdminSettingsChange = window.adminSettingsModule.handleChange(event, getAdminSettingsContext());
+    if (handledAdminSettingsChange) {
+      return;
+    }
+  }
+
   if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleChange === "function") {
     const handledAdminChange = window.adminCriteriaModule.handleChange(event, getAdminCriteriaContext());
     if (handledAdminChange) {
@@ -1496,6 +1570,11 @@ function handlePageChange(event) {
 }
 
 function submitStudentSubmission(form) {
+  if (!state.submissionOpen) {
+    showToast("Submission is currently OFF. Contact admin.", "warning");
+    return;
+  }
+
   if (!ensureYearEditAllowed("Submission create/update")) {
     return;
   }
@@ -1598,6 +1677,11 @@ function updateTeacherStatus(submissionId, nextStatus) {
 }
 
 function verifyAndSaveEvaluatorSubmission(submissionId) {
+  if (!state.evaluationOpen) {
+    showToast("Evaluation is currently OFF. Turn it on from Admin Settings.", "warning");
+    return;
+  }
+
   if (!ensureYearEditAllowed("Evaluator marks update")) {
     return;
   }
@@ -1644,6 +1728,11 @@ function verifyAndSaveEvaluatorSubmission(submissionId) {
 }
 
 function moveEvaluatorSubmissionToPending(submissionId) {
+  if (!state.evaluationOpen) {
+    showToast("Evaluation is currently OFF. Turn it on from Admin Settings.", "warning");
+    return;
+  }
+
   if (!ensureYearEditAllowed("Evaluator status update")) {
     return;
   }
@@ -2068,6 +2157,7 @@ function getAdminUserManagementContext() {
   return {
     state: state,
     users: users,
+    departments: state.departments,
     students: students,
     submissions: submissions,
     roleConfig: roleConfig,
@@ -2079,11 +2169,44 @@ function getAdminUserManagementContext() {
     getUserActivityCount: getUserActivityCount,
     canDeleteUser: canDeleteUser,
     getNextUserId: getNextUserId,
+    ensureDepartmentExists: ensureDepartmentExists,
     addRecentActivity: addRecentActivity,
     escapeHtml: escapeHtml,
     escapeAttribute: escapeAttribute,
     showToast: showToast,
     openConfirmModal: openConfirmModal,
+    renderPage: renderPage
+  };
+}
+
+function getAdminDepartmentContext() {
+  return {
+    state: state,
+    getDepartmentList: getDepartmentList,
+    ensureDepartmentExists: ensureDepartmentExists,
+    removeDepartment: removeDepartment,
+    addRecentActivity: addRecentActivity,
+    escapeHtml: escapeHtml,
+    escapeAttribute: escapeAttribute,
+    showToast: showToast,
+    openConfirmModal: openConfirmModal,
+    renderPage: renderPage
+  };
+}
+
+function getAdminSettingsContext() {
+  return {
+    state: state,
+    getAcademicYears: function getAcademicYears() {
+      return academicYears;
+    },
+    setSelectedAcademicYear: setSelectedAcademicYear,
+    setActiveAcademicYear: setActiveAcademicYear,
+    addRecentActivity: addRecentActivity,
+    resetDemoData: resetDemoData,
+    showToast: showToast,
+    openConfirmModal: openConfirmModal,
+    renderTopbar: renderTopbar,
     renderPage: renderPage
   };
 }
@@ -2278,7 +2401,9 @@ function handleAdminDashboardAction(action) {
       deactivateActiveAcademicYear: deactivateActiveAcademicYear,
       getActiveAcademicYear: getActiveAcademicYear,
       getSystemModeLabel: getSystemModeLabel,
+      setSelectedAcademicYear: setSelectedAcademicYear,
       createAcademicYearEntry: createAcademicYearEntry,
+      resetDemoData: resetDemoData,
       addRecentActivity: addRecentActivity,
       navigateToPage: navigateToPage,
       showToast: showToast,
@@ -2293,6 +2418,116 @@ function handleAdminDashboardAction(action) {
   }
 
   showToast("Admin action not available in this page context.", "warning");
+}
+
+function normalizeDepartmentLabel(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function buildDepartmentOptionsFromUsers(userList) {
+  const departments = [];
+
+  (userList || []).forEach((user) => {
+    const label = normalizeDepartmentLabel(user && user.department);
+    if (!label) {
+      return;
+    }
+
+    if (departments.indexOf(label) === -1) {
+      departments.push(label);
+    }
+  });
+
+  departments.sort((a, b) => a.localeCompare(b));
+  return departments;
+}
+
+function getDepartmentList() {
+  if (!Array.isArray(state.departments)) {
+    state.departments = [];
+  }
+
+  if (!state.departments.length) {
+    state.departments = buildDepartmentOptionsFromUsers(users);
+  }
+
+  return state.departments;
+}
+
+function ensureDepartmentExists(name) {
+  const label = normalizeDepartmentLabel(name);
+  if (!label) {
+    return false;
+  }
+
+  const departments = getDepartmentList();
+  const normalized = label.toLowerCase();
+  const exists = departments.some((item) => normalizeDepartmentLabel(item).toLowerCase() === normalized);
+
+  if (!exists) {
+    departments.push(label);
+    departments.sort((a, b) => a.localeCompare(b));
+  }
+
+  return true;
+}
+
+function removeDepartment(name) {
+  const target = normalizeDepartmentLabel(name);
+  if (!target) {
+    return false;
+  }
+
+  const normalizedTarget = target.toLowerCase();
+
+  const inUse = users.some((user) => normalizeDepartmentLabel(user.department).toLowerCase() === normalizedTarget);
+  if (inUse) {
+    return false;
+  }
+
+  const before = getDepartmentList().length;
+  state.departments = getDepartmentList().filter((item) => normalizeDepartmentLabel(item).toLowerCase() !== normalizedTarget);
+  return state.departments.length !== before;
+}
+
+function resetDemoData() {
+  criteriaCatalog = getDefaultCriteriaCatalog();
+  submissions = getDefaultSubmissions();
+  users = createInitialUsers();
+  academicYears = defaultAcademicYears.slice();
+
+  state.selectedAcademicYear = academicYears[0] || "";
+  state.activeAcademicYear = state.selectedAcademicYear;
+  state.academicYearState = createAcademicYearState(academicYears, state.activeAcademicYear);
+  state.systemMode = "setup";
+  state.submissionOpen = true;
+  state.evaluationOpen = true;
+
+  state.criteriaLastUpdatedAt = null;
+  state.recentActivity = [];
+  state.criteriaByYear = {};
+  state.criteriaHistoryByYear = {};
+
+  state.editingCriteriaItemId = null;
+  state.editingCategoryId = null;
+  state.editingUserId = null;
+  state.showUserForm = false;
+  state.userSearchQuery = "";
+  state.userFilterType = "all";
+  state.userFilterValue = "all";
+  state.userSortKey = "name";
+  state.userSortDirection = "asc";
+
+  const firstCategory = criteriaCatalog[0];
+  const firstItem = firstCategory && firstCategory.items && firstCategory.items[0];
+  state.selectedSubmissionCategoryId = firstCategory ? firstCategory.id : "";
+  state.selectedSubmissionItemId = firstItem ? firstItem.id : "";
+
+  state.departments = buildDepartmentOptionsFromUsers(users);
+
+  resetEvaluatorFlow();
+  initializeYearScopedCriteriaStores();
+  bootstrapComputedMarks();
 }
 
 function createInitialUsers() {
