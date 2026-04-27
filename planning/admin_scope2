@@ -1,0 +1,106 @@
+# Admin Module Implementation — Based on System Requirements
+
+You are tasked with completing the Admin UI for the "Best Class Evaluation & Verification System".
+
+## Context
+This system evaluates and ranks classes based on multiple criteria. The Admin defines and controls the entire evaluation structure. All configurations must be dynamic and stored (not hardcoded).
+
+---
+
+## 1. Academic Year Management
+Implement UI to:
+- Create a new academic year (e.g., 2025–26)
+- Activate / deactivate an academic year
+- Ensure only one active academic year at a time
+- Switch between academic years (context-aware UI)
+
+Requirements:
+- Data must be separated by academic year
+- Previous year data must remain unchanged
+
+---
+
+## 2. Criteria Management
+This is the most critical module.
+
+Implement:
+- Add new criteria (e.g., Academics, Internships)
+- Add sub-criteria under each criterion
+- Edit / delete criteria and sub-criteria
+- Maintain hierarchy (Criterion → Sub-criterion)
+- Maintain history per academic year
+
+UI Requirements:
+- Display criteria in structured format (tree/table)
+- Show max marks per sub-criterion
+- Inline editing or modal-based editing
+
+Constraints:
+- Criteria must be dynamic (not hardcoded)
+- Criteria must be fetched based on selected academic year
+
+---
+
+## 3. Marks Configuration
+Implement:
+- Assign marks for each sub-criterion
+- Set maximum score limit per criterion
+
+Validation:
+- Marks must not exceed defined maximum
+- Marks must be editable and stored in database
+
+---
+
+## 4. Lock Criteria Feature
+Implement:
+- Ability to lock criteria once evaluation begins
+
+UI:
+- Provide clear "Lock Criteria" action
+- Add confirmation dialog before locking
+
+Constraint:
+- Once locked, criteria cannot be edited
+
+---
+
+## 5. User & Role Management
+Implement:
+- Create users
+- Assign roles (Student, Teacher, Evaluation Team, HOD, IQAC, Admin)
+- Edit / delete users
+
+UI:
+- Table view with filters (by role, department)
+- Add/Edit via modal
+
+---
+
+## 6. Dashboard Overview (Admin)
+Implement:
+- Summary of:
+  - Total classes
+  - Submission status
+  - Evaluation progress
+- Display active academic year
+
+---
+
+## 7. System Constraints
+Ensure:
+- Only Admin can modify criteria
+- Criteria are tied to academic year
+- System supports dynamic configuration
+- No hardcoded values for marks or criteria
+
+---
+
+## Goal
+Build a clean, structured Admin UI that allows full control over:
+- Academic years
+- Evaluation criteria
+- Marks configuration
+- User roles
+
+The UI should minimize friction and clearly represent system structure.

@@ -29,7 +29,8 @@ const roleConfig = {
     heading: "Admin Workspace",
     menu: [
       { page: "dashboard", label: "Dashboard", icon: "◉" },
-      { page: "criteria", label: "Criteria Management", icon: "⚙" }
+      { page: "criteria", label: "Criteria Management", icon: "⚙" },
+      { page: "users", label: "User Management", icon: "👥" }
     ]
   },
   hod: {
@@ -42,7 +43,23 @@ const roleConfig = {
   }
 };
 
-const academicYears = ["2025-2026", "2024-2025", "2023-2024"];
+const adminManagedRoleOptions = [
+  { value: "student", label: "Student" },
+  { value: "teacher", label: "Class Teacher" },
+  { value: "evaluator", label: "Evaluation Team" },
+  { value: "hod", label: "HOD / IQAC" },
+  { value: "admin", label: "Admin" }
+];
+
+let academicYears = ["2025-2026", "2024-2025", "2023-2024"];
+
+function createAcademicYearState(years, activeYear) {
+  const defaultActiveYear = years.includes(activeYear) ? activeYear : years[0] || "";
+  return years.map((year) => ({
+    year: year,
+    isActive: year === defaultActiveYear
+  }));
+}
 
 const evaluatorDepartmentRules = [
   { match: "bsc cs", department: "Computer Science" },
@@ -61,21 +78,40 @@ const students = [
 
 let criteriaCatalog = cloneCriteriaCatalog(window.criteriaData || []);
 let submissions = cloneSubmissions(window.seedSubmissions || []);
+let users = createInitialUsers();
 
 const state = {
   loggedIn: false,
   currentRole: "student",
+  currentUserId: null,
   activePage: "dashboard",
   currentStudentId: 1,
   selectedAcademicYear: academicYears[0],
+  academicYearState: createAcademicYearState(academicYears, academicYears[0]),
+  activeAcademicYear: academicYears[0],
+  systemMode: "setup",
+  criteriaLastUpdatedAt: null,
+  recentActivity: [],
   evaluatorView: "departments",
   evaluatorDepartment: "",
   evaluatorStudentId: null,
   evaluatorTransition: null,
   selectedSubmissionCategoryId: "",
   selectedSubmissionItemId: "",
-  editingCriteriaItemId: null
+  editingCriteriaItemId: null,
+  editingCategoryId: null,
+  editingUserId: null,
+  showUserForm: false,
+  userSearchQuery: "",
+  userFilterType: "all",
+  userFilterValue: "all",
+  userSortKey: "name",
+  userSortDirection: "asc",
+  criteriaByYear: {},
+  criteriaHistoryByYear: {}
 };
+
+initializeYearScopedCriteriaStores();
 
 const ui = {};
 let pendingConfirmationAction = null;
@@ -198,6 +234,7 @@ function cloneSubmissions(input) {
       id: Number(submission.id) || index + 1,
       studentId: Number(submission.studentId) || 1,
       criteriaId: Number(submission.criteriaId) || 0,
+      academicYear: normalizeAcademicYearValue(submission.academicYear),
       description: String(submission.description || ""),
       status: String(submission.status || "Pending"),
       remarks: String(submission.remarks || ""),
@@ -326,6 +363,22 @@ function handleLogin(event) {
   event.preventDefault();
   const formData = new FormData(ui.loginForm);
   const role = String(formData.get("role") || "student");
+  const email = String(formData.get("email") || "").trim();
+
+  if (email) {
+    const matchedUser = findUserByEmail(email);
+    if (matchedUser && matchedUser.status === "Inactive") {
+      showToast("This user is inactive. Contact admin to reactivate access.", "warning");
+      return;
+    }
+
+    if (matchedUser && matchedUser.role !== role) {
+      showToast("Role mismatch. Login with your assigned role: " + getRoleLabel(matchedUser.role) + ".", "warning");
+      return;
+    }
+
+    state.currentUserId = matchedUser ? matchedUser.id : null;
+  }
 
   if (appPageConfig.redirectOnLogin) {
     const route = getRoleRoute(role, getRoleMenu(role)[0].page);
@@ -353,6 +406,7 @@ function handleLogout() {
 
   state.loggedIn = false;
   state.currentRole = "student";
+  state.currentUserId = null;
   state.activePage = "dashboard";
   state.editingCriteriaItemId = null;
   resetEvaluatorFlow();
@@ -515,7 +569,13 @@ function renderPage() {
   } else if (state.currentRole === "evaluator") {
     content = state.activePage === "evaluation" ? renderEvaluatorEvaluationPage() : renderEvaluatorDashboard();
   } else if (state.currentRole === "admin") {
-    content = state.activePage === "criteria" ? renderAdminCriteriaPage() : renderAdminDashboard();
+    if (state.activePage === "criteria") {
+      content = renderAdminCriteriaPage();
+    } else if (state.activePage === "users") {
+      content = renderAdminUserManagementPage();
+    } else {
+      content = renderAdminDashboard();
+    }
   } else {
     content = state.activePage === "reports" ? renderHodReportsPage() : renderHodDashboard();
   }
@@ -1064,23 +1124,56 @@ function renderEvaluatorQueueCard(item, sectionType) {
 }
 
 function renderAdminDashboard() {
+  if (window.adminDashboardModule && typeof window.adminDashboardModule.renderDashboard === "function") {
+    return window.adminDashboardModule.renderDashboard({
+      state: state,
+      academicYears: academicYears,
+      submissions: submissions,
+      getSubmissionsForYear: getSubmissionsForYear,
+      students: students,
+      criteriaCatalog: criteriaCatalog,
+      buildSummaryMetrics: buildSummaryMetrics,
+      buildClassPerformance: buildClassPerformance,
+      getActiveAcademicYear: getActiveAcademicYear,
+      getAllCriteriaItems: getAllCriteriaItems,
+      getSystemModeStatusClass: getSystemModeStatusClass,
+      getSystemModeLabel: getSystemModeLabel,
+      renderDashboardCards: renderDashboardCards,
+      renderStatusProgress: renderStatusProgress,
+      escapeHtml: escapeHtml
+    });
+  }
+
   const metrics = buildSummaryMetrics(submissions);
   return (
     "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Overview of criteria, submissions, and yearly setup.</p></div></section>" +
     renderDashboardCards(metrics) +
-    renderStatusProgress("Workflow Status", metrics) +
-    "<section class=\"chart-card\"><h3>System Snapshot</h3><div class=\"meta-list\"><p><strong>Total Categories:</strong> " + criteriaCatalog.length + "</p><p><strong>Total Criteria Items:</strong> " + getAllCriteriaItems().length + "</p><p><strong>Academic Year:</strong> " + escapeHtml(state.selectedAcademicYear) + "</p></div></section>"
+    renderStatusProgress("Workflow Status", metrics)
   );
 }
 
 function renderAdminCriteriaPage() {
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.renderCriteriaPage === "function") {
+    return window.adminCriteriaModule.renderCriteriaPage(getAdminCriteriaContext());
+  }
+
   const categories = getCriteriaCategories();
   const editingItem = state.editingCriteriaItemId ? getCriteriaById(state.editingCriteriaItemId) : null;
 
   const yearOptions = academicYears
     .map((year) => {
       const selected = year === state.selectedAcademicYear ? " selected" : "";
-      return "<option value=\"" + year + "\"" + selected + ">" + year + "</option>";
+      const yearState = state.academicYearState.find((item) => item.year === year);
+      const statusLabel = yearState && yearState.isActive ? " (Active)" : "";
+      return "<option value=\"" + year + "\"" + selected + ">" + year + statusLabel + "</option>";
+    })
+    .join("");
+
+  const academicYearStatusRows = state.academicYearState
+    .map((item) => {
+      const chipClass = item.isActive ? "status-approved" : "status-pending";
+      const chipLabel = item.isActive ? "Active" : "Inactive";
+      return "<p><strong>" + escapeHtml(item.year) + "</strong> <span class=\"status-pill " + chipClass + "\">" + chipLabel + "</span></p>";
     })
     .join("");
 
@@ -1121,6 +1214,7 @@ function renderAdminCriteriaPage() {
     "<section class=\"section-header\"><div><h1>Criteria Management</h1><p class=\"muted\">Add categories, add criteria items, and update marks/rules.</p></div></section>" +
     "<section class=\"cards-grid two-panel-grid\">" +
     "<article class=\"panel\"><h3>Academic Year</h3><div class=\"field\"><label for=\"academic-year-select\">Select Session</label><select id=\"academic-year-select\">" + yearOptions + "</select></div>" +
+    "<div class=\"meta-list\">" + academicYearStatusRows + "</div>" +
     "<hr /><h3>Add Category</h3><form id=\"category-form\" class=\"stack-form\"><div class=\"field\"><label for=\"category-title\">Category Name</label><input id=\"category-title\" name=\"categoryTitle\" type=\"text\" required /></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">＋ Add Category</button></div></form></article>" +
     "<article class=\"panel\"><h3>" + (editingItem ? "Edit Criteria Item" : "Add Criteria Item") + "</h3>" +
     "<form id=\"criteria-item-form\" class=\"stack-form\" data-editing-item=\"" + (editingItem ? editingItem.id : "") + "\">" +
@@ -1132,6 +1226,16 @@ function renderAdminCriteriaPage() {
     "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "✎ Update Item" : "＋ Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost " + (editingItem ? "" : "hidden") + "\">Cancel</button></div>" +
     "</form></article></section>" +
     "<section class=\"panel\"><h3>Criteria by Category</h3><div class=\"table-wrap\"><table><thead><tr><th>Category</th><th>Item</th><th>Type</th><th>Marks / Rules</th><th>Actions</th></tr></thead><tbody>" + groupedRows + "</tbody></table></div></section>"
+  );
+}
+
+function renderAdminUserManagementPage() {
+  if (window.adminUserManagementModule && typeof window.adminUserManagementModule.renderUserManagementPage === "function") {
+    return window.adminUserManagementModule.renderUserManagementPage(getAdminUserManagementContext());
+  }
+
+  return (
+    "<section class=\"section-header\"><div><h1>User Management</h1><p class=\"muted\">User management module is not available in this page context.</p></div></section>"
   );
 }
 
@@ -1211,6 +1315,26 @@ function handlePageClick(event) {
     return;
   }
 
+  const adminActionButton = event.target.closest("button[data-admin-action]");
+  if (adminActionButton) {
+    handleAdminDashboardAction(String(adminActionButton.dataset.adminAction || ""));
+    return;
+  }
+
+  if (state.currentRole === "admin" && window.adminUserManagementModule && typeof window.adminUserManagementModule.handleClick === "function") {
+    const handledAdminUserClick = window.adminUserManagementModule.handleClick(event, getAdminUserManagementContext());
+    if (handledAdminUserClick) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleClick === "function") {
+    const handledAdminClick = window.adminCriteriaModule.handleClick(event, getAdminCriteriaContext());
+    if (handledAdminClick) {
+      return;
+    }
+  }
+
   const submitCategoryButton = event.target.closest("button[data-submit-category]");
   if (submitCategoryButton) {
     const categoryId = String(submitCategoryButton.dataset.submitCategory || "");
@@ -1283,6 +1407,20 @@ function handlePageClick(event) {
 function handlePageSubmit(event) {
   const form = event.target;
 
+  if (state.currentRole === "admin" && window.adminUserManagementModule && typeof window.adminUserManagementModule.handleSubmit === "function") {
+    const handledAdminUserSubmit = window.adminUserManagementModule.handleSubmit(event, getAdminUserManagementContext());
+    if (handledAdminUserSubmit) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleSubmit === "function") {
+    const handledAdminSubmit = window.adminCriteriaModule.handleSubmit(event, getAdminCriteriaContext());
+    if (handledAdminSubmit) {
+      return;
+    }
+  }
+
   if (form.id === "student-submission-form") {
     event.preventDefault();
     submitStudentSubmission(form);
@@ -1304,10 +1442,36 @@ function handlePageSubmit(event) {
 function handlePageChange(event) {
   const target = event.target;
 
+  if (state.currentRole === "admin" && window.adminUserManagementModule && typeof window.adminUserManagementModule.handleChange === "function") {
+    const handledAdminUserChange = window.adminUserManagementModule.handleChange(event, getAdminUserManagementContext());
+    if (handledAdminUserChange) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminDashboardModule && typeof window.adminDashboardModule.handleChange === "function") {
+    const handledAdminDashboardChange = window.adminDashboardModule.handleChange(event, {
+      state: state,
+      renderPage: renderPage
+    });
+
+    if (handledAdminDashboardChange) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleChange === "function") {
+    const handledAdminChange = window.adminCriteriaModule.handleChange(event, getAdminCriteriaContext());
+    if (handledAdminChange) {
+      return;
+    }
+  }
+
   if (target.id === "academic-year-select") {
-    state.selectedAcademicYear = target.value;
+    setSelectedAcademicYear(target.value);
     renderTopbar();
-    showToast("Academic year set to " + state.selectedAcademicYear + ".", "info");
+    renderPage();
+    showToast("Viewing academic year " + state.selectedAcademicYear + ". Only the active year can be edited.", "info");
     return;
   }
 
@@ -1332,6 +1496,10 @@ function handlePageChange(event) {
 }
 
 function submitStudentSubmission(form) {
+  if (!ensureYearEditAllowed("Submission create/update")) {
+    return;
+  }
+
   const formData = new FormData(form);
   const categoryId = String(formData.get("categoryId") || "").trim();
   const criteriaId = Number(formData.get("criteriaId"));
@@ -1383,6 +1551,7 @@ function submitStudentSubmission(form) {
     id: nextId,
     studentId: state.currentStudentId,
     criteriaId: criteriaId,
+    academicYear: state.selectedAcademicYear,
     description: description,
     status: "Pending",
     remarks: "",
@@ -1401,6 +1570,10 @@ function submitStudentSubmission(form) {
 }
 
 function updateTeacherStatus(submissionId, nextStatus) {
+  if (!ensureYearEditAllowed("Teacher verification update")) {
+    return;
+  }
+
   const submission = submissions.find((item) => item.id === submissionId);
   if (!submission) {
     showToast("Submission not found.", "error");
@@ -1425,6 +1598,10 @@ function updateTeacherStatus(submissionId, nextStatus) {
 }
 
 function verifyAndSaveEvaluatorSubmission(submissionId) {
+  if (!ensureYearEditAllowed("Evaluator marks update")) {
+    return;
+  }
+
   const submission = submissions.find((item) => item.id === submissionId);
 
   if (!submission) {
@@ -1467,6 +1644,10 @@ function verifyAndSaveEvaluatorSubmission(submissionId) {
 }
 
 function moveEvaluatorSubmissionToPending(submissionId) {
+  if (!ensureYearEditAllowed("Evaluator status update")) {
+    return;
+  }
+
   const submission = submissions.find((item) => item.id === submissionId);
   if (!submission) {
     showToast("Submission not found.", "error");
@@ -1485,183 +1666,54 @@ function moveEvaluatorSubmissionToPending(submissionId) {
 }
 
 function submitCategoryForm(form) {
-  const formData = new FormData(form);
-  const categoryTitle = String(formData.get("categoryTitle") || "").trim();
-
-  if (!categoryTitle) {
-    showToast("Please enter a category name.", "error");
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.submitCategoryForm === "function") {
+    window.adminCriteriaModule.submitCategoryForm(form, getAdminCriteriaContext());
     return;
   }
 
-  const duplicate = criteriaCatalog.some((category) => category.category.toLowerCase() === categoryTitle.toLowerCase());
-  if (duplicate) {
-    showToast("Category already exists.", "warning");
-    return;
-  }
-
-  const nextId = "cat-" + Date.now();
-  criteriaCatalog.push({
-    id: nextId,
-    category: categoryTitle,
-    items: []
-  });
-
-  form.reset();
-  showToast("Category added.", "success");
-  renderPage();
+  showToast("Admin criteria module is not available.", "warning");
 }
 
 function submitCriteriaItemForm(form) {
-  const formData = new FormData(form);
-  const categoryId = String(formData.get("categoryId") || "").trim();
-  const title = String(formData.get("title") || "").trim();
-  const type = normalizeCriteriaType(formData.get("type"));
-  const marks = Number(formData.get("marks"));
-  const rulesInput = String(formData.get("rules") || "").trim();
-
-  if (!categoryId || !title) {
-    showToast("Please select category and title.", "error");
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.submitCriteriaItemForm === "function") {
+    window.adminCriteriaModule.submitCriteriaItemForm(form, getAdminCriteriaContext());
     return;
   }
 
-  const category = getCategoryById(categoryId);
-  if (!category) {
-    showToast("Category not found.", "error");
-    return;
-  }
-
-  let parsedRules = [];
-  if (type === "range") {
-    parsedRules = parseRulesFromText(rulesInput);
-    if (!parsedRules.length) {
-      showToast("Enter valid range rules like 90-100:5, 80-89.99:4", "error");
-      return;
-    }
-  }
-
-  if (type !== "range" && !Number.isFinite(marks)) {
-    showToast("Marks value is required for this type.", "error");
-    return;
-  }
-
-  if (type === "negative" && marks > 0) {
-    showToast("Negative criteria must use zero or negative marks.", "error");
-    return;
-  }
-
-  const editingId = Number(form.dataset.editingItem || state.editingCriteriaItemId || 0);
-  if (editingId) {
-    const targetItem = getCriteriaById(editingId);
-    if (!targetItem) {
-      showToast("Criteria item not found.", "error");
-      return;
-    }
-
-    const currentCategory = getCategoryByItemId(editingId);
-    if (currentCategory && currentCategory.id !== categoryId) {
-      currentCategory.items = currentCategory.items.filter((item) => item.id !== editingId);
-      category.items.push(targetItem);
-    }
-
-    targetItem.title = title;
-    targetItem.category = category.category;
-    targetItem.type = type;
-    targetItem.marks = type === "range" ? 0 : marks;
-    targetItem.rules = type === "range" ? parsedRules : [];
-
-    state.editingCriteriaItemId = null;
-    showToast("Criteria item updated.", "success");
-  } else {
-    const nextId = getNextCriteriaItemId();
-    category.items.push({
-      id: nextId,
-      category: category.category,
-      title: title,
-      type: type,
-      marks: type === "range" ? 0 : marks,
-      rules: type === "range" ? parsedRules : []
-    });
-    showToast("Criteria item added.", "success");
-  }
-
-  renderPage();
+  showToast("Admin criteria module is not available.", "warning");
 }
 
 function deleteCriteriaItem(itemId) {
-  const inUse = submissions.some((submission) => submission.criteriaId === itemId);
-  if (inUse) {
-    showToast("Cannot delete item used in submissions.", "warning");
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.deleteCriteriaItem === "function") {
+    window.adminCriteriaModule.deleteCriteriaItem(itemId, getAdminCriteriaContext());
     return;
   }
 
-  let deleted = false;
-  criteriaCatalog.forEach((category) => {
-    const previous = category.items.length;
-    category.items = category.items.filter((item) => item.id !== itemId);
-    if (category.items.length !== previous) {
-      deleted = true;
-    }
-  });
-
-  if (!deleted) {
-    showToast("Criteria item not found.", "error");
-    return;
-  }
-
-  if (state.editingCriteriaItemId === itemId) {
-    state.editingCriteriaItemId = null;
-  }
-
-  showToast("Criteria item deleted.", "success");
-  renderPage();
+  showToast("Admin criteria module is not available.", "warning");
 }
 
 function parseRulesFromText(input) {
-  if (!input) {
-    return [];
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.parseRulesFromText === "function") {
+    return window.adminCriteriaModule.parseRulesFromText(input);
   }
 
-  const segments = input.split(",").map((item) => item.trim()).filter(Boolean);
-  const rules = [];
-
-  segments.forEach((segment) => {
-    const parts = segment.split(":");
-    if (parts.length !== 2) {
-      return;
-    }
-
-    const rangePart = parts[0].trim();
-    const marksPart = Number(parts[1].trim());
-
-    const rangePieces = rangePart.split("-");
-    if (rangePieces.length !== 2 || !Number.isFinite(marksPart)) {
-      return;
-    }
-
-    const min = Number(rangePieces[0].trim());
-    const max = Number(rangePieces[1].trim());
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return;
-    }
-
-    rules.push({ min: min, max: max, marks: marksPart });
-  });
-
-  return rules;
+  return [];
 }
 
 function formatRulesText(rules) {
-  return (rules || [])
-    .map((rule) => {
-      return rule.min + "-" + rule.max + ":" + rule.marks;
-    })
-    .join(", ");
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.formatRulesText === "function") {
+    return window.adminCriteriaModule.formatRulesText(rules);
+  }
+
+  return "";
 }
 
 function getNextCriteriaItemId() {
-  const allIds = getAllCriteriaItems().map((item) => Number(item.id)).filter((id) => Number.isFinite(id));
-  const max = allIds.length ? Math.max(...allIds) : 100;
-  return max + 1;
+  if (window.adminCriteriaModule && typeof window.adminCriteriaModule.getNextCriteriaItemId === "function") {
+    return window.adminCriteriaModule.getNextCriteriaItemId(getAdminCriteriaContext());
+  }
+
+  return 101;
 }
 
 function bootstrapComputedMarks() {
@@ -1981,6 +2033,397 @@ function getApprovedSubmissionsByStudent(studentId) {
 
 function getCriteriaCategories() {
   return criteriaCatalog;
+}
+
+function normalizeAcademicYearValue(year) {
+  const raw = String(year || "").trim();
+  if (raw) {
+    return raw;
+  }
+  return String(academicYears[0] || "");
+}
+
+function getSubmissionAcademicYear(submission) {
+  if (!submission || typeof submission !== "object") {
+    return "";
+  }
+
+  const year = normalizeAcademicYearValue(submission.academicYear);
+  if (!submission.academicYear) {
+    submission.academicYear = year;
+  }
+  return year;
+}
+
+function getSubmissionsForYear(year) {
+  const targetYear = String(year || "").trim();
+  if (!targetYear) {
+    return submissions;
+  }
+
+  return submissions.filter((submission) => getSubmissionAcademicYear(submission) === targetYear);
+}
+
+function getAdminUserManagementContext() {
+  return {
+    state: state,
+    users: users,
+    students: students,
+    submissions: submissions,
+    roleConfig: roleConfig,
+    adminManagedRoleOptions: adminManagedRoleOptions,
+    findUserByEmail: findUserByEmail,
+    findUserById: findUserById,
+    normalizeUserRole: normalizeUserRole,
+    getRoleLabel: getRoleLabel,
+    getUserActivityCount: getUserActivityCount,
+    canDeleteUser: canDeleteUser,
+    getNextUserId: getNextUserId,
+    addRecentActivity: addRecentActivity,
+    escapeHtml: escapeHtml,
+    escapeAttribute: escapeAttribute,
+    showToast: showToast,
+    openConfirmModal: openConfirmModal,
+    renderPage: renderPage
+  };
+}
+
+function getAdminCriteriaContext() {
+  return {
+    state: state,
+    academicYears: academicYears,
+    criteriaCatalog: criteriaCatalog,
+    criteriaByYear: state.criteriaByYear,
+    criteriaHistoryByYear: state.criteriaHistoryByYear,
+    submissions: submissions,
+    getCriteriaCategories: getCriteriaCategories,
+    getCriteriaById: getCriteriaById,
+    getCategoryById: getCategoryById,
+    getCategoryByItemId: getCategoryByItemId,
+    getCriteriaHistoryForYear: getCriteriaHistoryForYear,
+    getCriteriaTypeLabel: getCriteriaTypeLabel,
+    getCriteriaRuleSummary: getCriteriaRuleSummary,
+    getAllCriteriaItems: getAllCriteriaItems,
+    normalizeCriteriaType: normalizeCriteriaType,
+    ensureYearEditAllowed: ensureYearEditAllowed,
+    setSelectedAcademicYear: setSelectedAcademicYear,
+    escapeHtml: escapeHtml,
+    escapeAttribute: escapeAttribute,
+    showToast: showToast,
+    openConfirmModal: openConfirmModal,
+    touchCriteriaUpdate: touchCriteriaUpdate,
+    renderTopbar: renderTopbar,
+    renderPage: renderPage
+  };
+}
+
+function setSelectedAcademicYear(year) {
+  const hasYear = academicYears.includes(year);
+  const nextYear = hasYear ? year : (academicYears[0] || "");
+  state.selectedAcademicYear = nextYear;
+  ensureCriteriaStoreForYear(nextYear);
+  criteriaCatalog = state.criteriaByYear[nextYear];
+}
+
+function setActiveAcademicYear(year) {
+  if (!academicYears.includes(year)) {
+    return;
+  }
+
+  state.activeAcademicYear = year;
+  state.academicYearState = academicYears.map((itemYear) => ({
+    year: itemYear,
+    isActive: itemYear === year
+  }));
+}
+
+function deactivateActiveAcademicYear() {
+  state.activeAcademicYear = "";
+  state.academicYearState = academicYears.map((itemYear) => ({
+    year: itemYear,
+    isActive: false
+  }));
+}
+
+function getActiveAcademicYear() {
+  return state.activeAcademicYear || "";
+}
+
+function getSystemModeLabel(mode) {
+  if (mode === "locked") {
+    return "Locked";
+  }
+  if (mode === "evaluation") {
+    return "Evaluation Ongoing";
+  }
+  return "Setup Mode";
+}
+
+function getSystemModeStatusClass(mode) {
+  if (mode === "locked") {
+    return "status-rejected";
+  }
+  if (mode === "evaluation") {
+    return "status-pending";
+  }
+  return "status-approved";
+}
+
+function ensureYearEditAllowed(actionLabel) {
+  const activeYear = getActiveAcademicYear();
+
+  if (!activeYear) {
+    showToast(actionLabel + " blocked. No active academic year.", "warning");
+    return false;
+  }
+
+  if (state.selectedAcademicYear !== activeYear) {
+    showToast(actionLabel + " blocked. Switch to the active year (" + activeYear + ") to edit data.", "warning");
+    return false;
+  }
+
+  if (state.systemMode === "locked") {
+    showToast(actionLabel + " blocked. System is locked.", "warning");
+    return false;
+  }
+
+  return true;
+}
+
+function addRecentActivity(message) {
+  const now = new Date();
+  state.recentActivity.unshift({
+    message: message,
+    time: now.toLocaleString()
+  });
+  state.recentActivity = state.recentActivity.slice(0, 25);
+}
+
+function touchCriteriaUpdate(message) {
+  state.criteriaLastUpdatedAt = new Date().toISOString();
+  const yearKey = state.selectedAcademicYear;
+  ensureCriteriaStoreForYear(yearKey);
+  state.criteriaHistoryByYear[yearKey].unshift({
+    message: message,
+    at: state.criteriaLastUpdatedAt
+  });
+  state.criteriaHistoryByYear[yearKey] = state.criteriaHistoryByYear[yearKey].slice(0, 50);
+  addRecentActivity(message);
+}
+
+function createAcademicYearEntry(rawValue) {
+  const yearLabel = String(rawValue || "").trim();
+  if (!yearLabel) {
+    return;
+  }
+
+  if (academicYears.includes(yearLabel)) {
+    showToast("Academic year already exists.", "warning");
+    return;
+  }
+
+  academicYears.unshift(yearLabel);
+  state.academicYearState.unshift({ year: yearLabel, isActive: false });
+  state.criteriaByYear[yearLabel] = cloneCriteriaCatalog(criteriaCatalog);
+  state.criteriaHistoryByYear[yearLabel] = [];
+  state.selectedAcademicYear = yearLabel;
+  criteriaCatalog = state.criteriaByYear[yearLabel];
+  addRecentActivity("Created academic year: " + yearLabel);
+  showToast("Academic year " + yearLabel + " created.", "success");
+  renderPage();
+}
+
+function initializeYearScopedCriteriaStores() {
+  const baseCatalog = cloneCriteriaCatalog(criteriaCatalog);
+
+  academicYears.forEach((year, index) => {
+    if (index === 0) {
+      state.criteriaByYear[year] = criteriaCatalog;
+    } else {
+      state.criteriaByYear[year] = cloneCriteriaCatalog(baseCatalog);
+    }
+    state.criteriaHistoryByYear[year] = [];
+  });
+
+  const selectedYear = state.selectedAcademicYear;
+  ensureCriteriaStoreForYear(selectedYear);
+  criteriaCatalog = state.criteriaByYear[selectedYear];
+}
+
+function ensureCriteriaStoreForYear(year) {
+  const safeYear = String(year || "");
+  if (!safeYear) {
+    return;
+  }
+
+  if (!state.criteriaByYear[safeYear]) {
+    state.criteriaByYear[safeYear] = cloneCriteriaCatalog(criteriaCatalog);
+  }
+
+  if (!state.criteriaHistoryByYear[safeYear]) {
+    state.criteriaHistoryByYear[safeYear] = [];
+  }
+}
+
+function getCriteriaHistoryForYear(year) {
+  ensureCriteriaStoreForYear(year);
+  return state.criteriaHistoryByYear[String(year || "")] || [];
+}
+
+function handleAdminDashboardAction(action) {
+  if (window.adminDashboardModule && typeof window.adminDashboardModule.handleAction === "function") {
+    const handled = window.adminDashboardModule.handleAction(action, {
+      state: state,
+      setActiveAcademicYear: setActiveAcademicYear,
+      deactivateActiveAcademicYear: deactivateActiveAcademicYear,
+      getActiveAcademicYear: getActiveAcademicYear,
+      getSystemModeLabel: getSystemModeLabel,
+      createAcademicYearEntry: createAcademicYearEntry,
+      addRecentActivity: addRecentActivity,
+      navigateToPage: navigateToPage,
+      showToast: showToast,
+      openConfirmModal: openConfirmModal,
+      renderPage: renderPage,
+      renderTopbar: renderTopbar
+    });
+
+    if (handled) {
+      return;
+    }
+  }
+
+  showToast("Admin action not available in this page context.", "warning");
+}
+
+function createInitialUsers() {
+  const studentUsers = students.map((student) => {
+    return {
+      id: student.id,
+      name: student.name,
+      email: buildUserEmail(student.name, "student"),
+      role: "student",
+      department: student.className,
+      status: "Active",
+      linkedStudentId: student.id
+    };
+  });
+
+  const staffUsers = [
+    {
+      id: 1001,
+      name: "Meera Thomas",
+      email: "meera.thomas@college.edu",
+      role: "teacher",
+      department: "Computer Science",
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 1002,
+      name: "Vinod Kumar",
+      email: "vinod.kumar@college.edu",
+      role: "evaluator",
+      department: "Evaluation Cell",
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 1003,
+      name: "Latha Nair",
+      email: "latha.nair@college.edu",
+      role: "hod",
+      department: "IQAC",
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 1004,
+      name: "Admin User",
+      email: "admin@college.edu",
+      role: "admin",
+      department: "Administration",
+      status: "Active",
+      linkedStudentId: null
+    }
+  ];
+
+  return studentUsers.concat(staffUsers);
+}
+
+function buildUserEmail(name, fallbackPrefix) {
+  const base = String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "");
+  const prefix = base || String(fallbackPrefix || "user").toLowerCase();
+  return prefix + "@college.edu";
+}
+
+function normalizeUserRole(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  if (normalized === "teacher" || normalized === "class teacher") {
+    return "teacher";
+  }
+  if (normalized === "evaluator" || normalized === "evaluation team") {
+    return "evaluator";
+  }
+  if (normalized === "hod" || normalized === "iqac" || normalized === "hod / iqac") {
+    return "hod";
+  }
+  if (normalized === "admin") {
+    return "admin";
+  }
+  return "student";
+}
+
+function getRoleLabel(role) {
+  const roleKey = normalizeUserRole(role);
+  return roleConfig[roleKey] ? roleConfig[roleKey].label : "Student";
+}
+
+function findUserByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  return users.find((item) => normalizeEmail(item.email) === normalizedEmail) || null;
+}
+
+function findUserById(userId) {
+  const safeId = Number(userId);
+  if (!Number.isFinite(safeId)) {
+    return null;
+  }
+  return users.find((item) => Number(item.id) === safeId) || null;
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function getUserActivityCount(user) {
+  if (!user) {
+    return 0;
+  }
+
+  const linkedStudentId = Number(user.linkedStudentId);
+  if (!Number.isFinite(linkedStudentId)) {
+    return 0;
+  }
+
+  return submissions.filter((item) => Number(item.studentId) === linkedStudentId).length;
+}
+
+function canDeleteUser(user) {
+  return getUserActivityCount(user) === 0;
+}
+
+function getNextUserId() {
+  const ids = users.map((item) => Number(item.id)).filter((value) => Number.isFinite(value));
+  const max = ids.length ? Math.max.apply(null, ids) : 1000;
+  return max + 1;
 }
 
 function getAllCriteriaItems() {

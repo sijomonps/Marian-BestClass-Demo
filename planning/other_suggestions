@@ -1,0 +1,99 @@
+# Admin UI Enhancements — Usability & System Improvements
+
+You are improving the Admin UI beyond basic requirements to make the system more efficient, intuitive, and scalable.
+
+---
+
+## 1. Improved Criteria Management UX
+Enhance usability by:
+- Drag-and-drop reordering of criteria/sub-criteria
+- Expand/collapse hierarchy view
+- Bulk edit for marks
+- Duplicate criteria (for new academic year setup)
+
+---
+
+## 2. Smart Defaults & Templates
+Add:
+- Predefined templates for common criteria structures
+- Option to copy previous academic year criteria into new year
+
+Purpose:
+- Reduce setup time for admin
+
+---
+
+## 3. Validation & Error Prevention
+Implement:
+- Real-time validation (marks, required fields)
+- Warnings before deleting criteria with dependencies
+- Prevent incomplete configurations
+
+---
+
+## 4. Status Indicators
+Add:
+- Clear labels:
+  - Active / Inactive academic year
+  - Locked / Unlocked criteria
+- Visual indicators for system state
+
+---
+
+## 5. Audit & Change Tracking
+Implement:
+- Show last modified date/time for:
+  - Criteria
+  - Marks
+- Display "modified by" user
+
+Purpose:
+- Transparency and accountability
+
+---
+
+## 6. Search & Filtering
+Add:
+- Search criteria by name
+- Filter users by role/department
+- Quick navigation for large datasets
+
+---
+
+## 7. Notifications / Feedback
+Add:
+- Success/error messages for actions
+- Confirmation prompts for critical actions (lock, delete)
+
+---
+
+## 8. Performance & Scalability Considerations
+Ensure:
+- Efficient rendering of large criteria lists
+- Lazy loading or pagination where needed
+
+---
+
+## 9. UI/UX Principles
+Follow:
+- Minimal clicks to perform actions
+- Clear hierarchy visualization
+- Consistent layout and spacing
+- Avoid clutter (use tables + modals instead of excessive cards)
+
+---
+
+## 10. Future-Ready Design
+Prepare UI for:
+- Integration with backend APIs
+- Role-based access control
+- Multi-year data handling
+
+---
+
+## Goal
+Make the Admin UI:
+- Fast to configure
+- Hard to misuse
+- Easy to understand
+- Scalable for real-world use
