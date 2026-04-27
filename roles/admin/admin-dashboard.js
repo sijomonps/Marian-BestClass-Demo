@@ -5,135 +5,273 @@ window.applyPageConfig({
 
 (function initAdminDashboardModule() {
   function renderDashboard(ctx) {
+    const selectedYear = String(ctx.state.selectedAcademicYear || "");
     const yearSubmissions = typeof ctx.getSubmissionsForYear === "function"
-      ? ctx.getSubmissionsForYear(ctx.state.selectedAcademicYear)
-      : ctx.submissions;
+      ? ctx.getSubmissionsForYear(selectedYear)
+      : (ctx.submissions || []);
 
     const totalStudents = (ctx.students || []).length;
     const totalSubmissions = yearSubmissions.length;
-    const pendingVerifications = yearSubmissions.filter((item) => {
-      const status = String(item.status || "").toLowerCase();
-      return status === "pending" || status.indexOf("correction") > -1;
-    }).length;
+    const pendingVerifications = yearSubmissions.filter((item) => isPendingStatus(item.status)).length;
     const submissionStatusClass = ctx.state.submissionOpen ? "status-approved" : "status-rejected";
-    const evaluationStatusClass = ctx.state.evaluationOpen ? "status-approved" : "status-rejected";
     const submissionStatusLabel = ctx.state.submissionOpen ? "ON" : "OFF";
-    const evaluationStatusLabel = ctx.state.evaluationOpen ? "ON" : "OFF";
-    const activeYear = ctx.getActiveAcademicYear();
+    const activeYear = typeof ctx.getActiveAcademicYear === "function"
+      ? ctx.getActiveAcademicYear()
+      : selectedYear;
 
-    const quickTips = [
-      "Use Criteria Management to add category, item, marks, and type.",
-      "Use User Management to add Student, Teacher, and Evaluator accounts.",
-      "Use Department Management to keep the department list updated.",
-      "Use Settings to toggle submission/evaluation and choose academic year."
-    ];
+    const statusMetrics = buildSubmissionStatusMetrics(yearSubmissions);
+    const categoryMetrics = buildCategoryContributionMetrics(yearSubmissions, ctx.criteriaCatalog);
+    const classMetrics = buildClassPerformanceMetrics(yearSubmissions, ctx.students);
 
-    const tipRows = quickTips.map((tip) => "<li>" + ctx.escapeHtml(tip) + "</li>").join("");
+    const statusInsightLabel = statusMetrics.approved >= (statusMetrics.pending + statusMetrics.rejected)
+      ? "Good"
+      : "Needs improvement";
+    const categoryInsightLabel = categoryMetrics.totalMarks > 0 ? "Good" : "Needs improvement";
+    const classInsightLabel = classMetrics.totalScore > 0 ? "Good" : "Needs improvement";
+
+    const submissionChart = renderVerticalChart([
+      { label: "Approved", value: statusMetrics.approved, tone: "approved" },
+      { label: "Pending", value: statusMetrics.pending, tone: "pending" },
+      { label: "Rejected", value: statusMetrics.rejected, tone: "rejected" }
+    ]);
+
+    const categoryChart = renderHorizontalChart([
+      { label: "Academics", value: categoryMetrics.academics, tone: "approved" },
+      { label: "Courses", value: categoryMetrics.courses, tone: "score" },
+      { label: "Internship", value: categoryMetrics.internship, tone: "pending" },
+      { label: "Others", value: categoryMetrics.others, tone: "neutral" }
+    ]);
+
+    const classChart = renderVerticalChart(classMetrics.rows);
 
     return (
-      "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Simple overview for daily admin work.</p></div></section>" +
+      "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Key numbers and simple charts for quick decisions.</p></div></section>" +
       "<section class=\"cards-grid stats-grid\">" +
       "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Students</p></div><h3>" + totalStudents + "</h3></article>" +
-      "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Submissions</p></div><h3>" + totalSubmissions + "</h3><p class=\"muted\">Academic Year " + ctx.escapeHtml(ctx.state.selectedAcademicYear) + "</p></article>" +
+      "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Submissions</p></div><h3>" + totalSubmissions + "</h3><p class=\"muted\">Academic Year " + escapeUnsafe(selectedYear) + "</p></article>" +
       "<article class=\"stat-card\"><div class=\"stat-head\"><p>Pending Verifications</p></div><h3>" + pendingVerifications + "</h3></article>" +
       "<article class=\"stat-card\"><div class=\"stat-head\"><p>Submission Status</p></div><h3><span class=\"status-pill " + submissionStatusClass + "\">" + submissionStatusLabel + "</span></h3></article>" +
       "</section>" +
       "<section class=\"cards-grid two-panel-grid\">" +
       "<article class=\"panel\"><h3>Quick Actions</h3><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-page-jump=\"criteria\">Criteria Management</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"manage-users\">User Management</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"manage-departments\">Department Management</button><button type=\"button\" class=\"btn ghost\" data-admin-action=\"open-settings\">Settings</button></div></article>" +
-      "<article class=\"panel\"><h3>System Status</h3><div class=\"meta-list\"><p><strong>Active Academic Year:</strong> " + ctx.escapeHtml(activeYear || "Not set") + "</p><p><strong>Submission:</strong> <span class=\"status-pill " + submissionStatusClass + "\">" + submissionStatusLabel + "</span></p><p><strong>Evaluation:</strong> <span class=\"status-pill " + evaluationStatusClass + "\">" + evaluationStatusLabel + "</span></p></div></article>" +
+      "<article class=\"panel\"><h3>System Status</h3><div class=\"meta-list\"><p><strong>Active Academic Year:</strong> " + escapeUnsafe(activeYear || "Not set") + "</p><p><strong>Viewing Year:</strong> " + escapeUnsafe(selectedYear || "-") + "</p><p><strong>Submission:</strong> <span class=\"status-pill " + submissionStatusClass + "\">" + submissionStatusLabel + "</span></p></div></article>" +
       "</section>" +
-      "<section class=\"panel\"><h3>Beginner Notes</h3><ul class=\"simple-list\">" + tipRows + "</ul></section>"
+      "<section class=\"cards-grid two-panel-grid\">" +
+      "<article class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Submission Status</h3><span class=\"insight-chip " + getInsightClass(statusInsightLabel) + "\">" + statusInsightLabel + "</span></div><p class=\"muted\">Approved, Pending, Rejected</p>" + submissionChart + "</article>" +
+      "<article class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Category Contribution</h3><span class=\"insight-chip " + getInsightClass(categoryInsightLabel) + "\">" + categoryInsightLabel + "</span></div><p class=\"muted\">Academics, Courses, Internship, Others</p>" + categoryChart + "</article>" +
+      "</section>" +
+      "<section class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Class Performance</h3><span class=\"insight-chip " + getInsightClass(classInsightLabel) + "\">" + classInsightLabel + "</span></div><p class=\"muted\">Class-wise total approved score</p>" + classChart + "</section>"
     );
   }
 
-  function buildSystemOverviewMetrics(items) {
-    const submissions = Array.isArray(items) ? items : [];
-    const total = submissions.length;
-    const completed = submissions.filter((item) => item.status !== "Pending").length;
-    const verified = submissions.filter((item) => item.status === "Approved").length;
-    const evaluated = submissions.filter((item) => item.status === "Approved" && item.evaluatorVerified).length;
+  function buildSubmissionStatusMetrics(submissions) {
+    let approved = 0;
+    let pending = 0;
+    let rejected = 0;
 
-    const pendingSubmissions = Math.max(0, total - completed);
-    const pendingVerification = Math.max(0, completed - verified);
-    const pendingEvaluation = Math.max(0, verified - evaluated);
+    (submissions || []).forEach((item) => {
+      const status = String(item.status || "").toLowerCase();
+      if (status === "approved") {
+        approved += 1;
+      } else if (status === "rejected") {
+        rejected += 1;
+      } else if (isPendingStatus(status)) {
+        pending += 1;
+      }
+    });
 
     return {
-      total: total,
-      completed: completed,
-      verified: verified,
-      evaluated: evaluated,
-      completionPercent: toPercent(completed, total),
-      verifiedPercent: toPercent(verified, completed),
-      evaluatedPercent: toPercent(evaluated, verified),
-      pendingSubmissions: pendingSubmissions,
-      pendingVerification: pendingVerification,
-      pendingEvaluation: pendingEvaluation
+      approved: approved,
+      pending: pending,
+      rejected: rejected
     };
   }
 
-  function renderSystemOverviewSection(metrics, classCount, selectedYear, ctx) {
-    const progressRows = [
-      {
-        label: "% Submissions Completed",
-        percent: metrics.completionPercent,
-        numerator: metrics.completed,
-        denominator: metrics.total,
-        className: "progress-pending"
-      },
-      {
-        label: "% Submissions Verified",
-        percent: metrics.verifiedPercent,
-        numerator: metrics.verified,
-        denominator: metrics.completed,
-        className: "progress-approved"
-      },
-      {
-        label: "% Submissions Evaluated",
-        percent: metrics.evaluatedPercent,
-        numerator: metrics.evaluated,
-        denominator: metrics.verified,
-        className: "progress-score"
-      }
-    ];
+  function buildCategoryContributionMetrics(submissions, criteriaCatalog) {
+    const contribution = {
+      academics: 0,
+      courses: 0,
+      internship: 0,
+      others: 0,
+      totalMarks: 0
+    };
 
-    const progressHtml = progressRows
+    const categoryByItemId = new Map();
+    (criteriaCatalog || []).forEach((category) => {
+      (category.items || []).forEach((item) => {
+        categoryByItemId.set(Number(item.id), String(category.category || ""));
+      });
+    });
+
+    (submissions || []).forEach((submission) => {
+      if (String(submission.status || "").toLowerCase() !== "approved") {
+        return;
+      }
+
+      const marks = getSafeMarks(submission);
+      const categoryName = String(categoryByItemId.get(Number(submission.criteriaId)) || "").toLowerCase();
+
+      if (categoryName.indexOf("academic") > -1) {
+        contribution.academics += marks;
+      } else if (categoryName.indexOf("course") > -1) {
+        contribution.courses += marks;
+      } else if (categoryName.indexOf("internship") > -1) {
+        contribution.internship += marks;
+      } else {
+        contribution.others += marks;
+      }
+
+      contribution.totalMarks += marks;
+    });
+
+    contribution.academics = roundValue(contribution.academics);
+    contribution.courses = roundValue(contribution.courses);
+    contribution.internship = roundValue(contribution.internship);
+    contribution.others = roundValue(contribution.others);
+    contribution.totalMarks = roundValue(contribution.totalMarks);
+
+    return contribution;
+  }
+
+  function buildClassPerformanceMetrics(submissions, students) {
+    const studentById = new Map((students || []).map((student) => [Number(student.id), student]));
+    const classScores = new Map();
+
+    (submissions || []).forEach((submission) => {
+      if (String(submission.status || "").toLowerCase() !== "approved") {
+        return;
+      }
+
+      const student = studentById.get(Number(submission.studentId));
+      if (!student) {
+        return;
+      }
+
+      const className = String(student.className || "General");
+      const current = classScores.get(className) || 0;
+      classScores.set(className, current + getSafeMarks(submission));
+    });
+
+    const rows = Array.from(classScores.entries())
+      .map((entry) => ({
+        label: entry[0],
+        value: roundValue(entry[1]),
+        tone: "score"
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return {
+      rows: rows,
+      totalScore: roundValue(rows.reduce((sum, row) => sum + row.value, 0))
+    };
+  }
+
+  function renderVerticalChart(rows) {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    if (!safeRows.length) {
+      return "<p class=\"empty-state\">No data available.</p>";
+    }
+
+    const maxValue = Math.max.apply(null, safeRows.map((row) => Number(row.value) || 0).concat([1]));
+
+    const chartRows = safeRows
       .map((row) => {
+        const height = toPercent(row.value, maxValue);
         return (
-          "<div class=\"progress-row\">" +
-          "<div class=\"progress-meta\"><span>" + ctx.escapeHtml(row.label) + "</span><span>" + row.percent.toFixed(1) + "% (" + row.numerator + " / " + row.denominator + ")</span></div>" +
-          "<div class=\"progress-track\"><div class=\"progress-fill " + row.className + "\" style=\"width:" + row.percent.toFixed(1) + "%\"></div></div>" +
+          "<div class=\"simple-vbar-col\">" +
+          "<p class=\"simple-vbar-value\">" + formatValue(row.value) + "</p>" +
+          "<div class=\"simple-vbar-track\"><div class=\"simple-vbar-fill " + mapToneClass(row.tone) + "\" style=\"height:" + height.toFixed(1) + "%\"></div></div>" +
+          "<p class=\"simple-vbar-label\">" + escapeUnsafe(row.label) + "</p>" +
           "</div>"
         );
       })
       .join("");
 
-    return (
-      "<article class=\"panel\"><h3>System Progress Overview</h3><p class=\"muted\">Academic Year " + ctx.escapeHtml(selectedYear) + " with stage-specific denominators.</p>" +
-      "<div class=\"meta-list\"><p><strong>Total Classes:</strong> " + classCount + "</p><p><strong>Total Submissions:</strong> " + metrics.total + "</p><p><strong>Pending Submissions:</strong> " + metrics.pendingSubmissions + "</p><p><strong>Pending Verification:</strong> " + metrics.pendingVerification + "</p><p><strong>Pending Evaluation:</strong> " + metrics.pendingEvaluation + "</p></div>" +
-      "<div class=\"progress-list\">" + progressHtml + "</div>" +
-      "</article>"
-    );
+    return "<div class=\"simple-vbar-chart\">" + chartRows + "</div>";
   }
 
-  function getClassCountForSubmissions(submissions, students) {
-    const classSet = new Set();
-    const studentById = new Map((students || []).map((item) => [Number(item.id), item]));
+  function renderHorizontalChart(rows) {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    if (!safeRows.length) {
+      return "<p class=\"empty-state\">No data available.</p>";
+    }
 
-    (submissions || []).forEach((submission) => {
-      const student = studentById.get(Number(submission.studentId));
-      if (student && student.className) {
-        classSet.add(String(student.className));
-      }
-    });
+    const maxValue = Math.max.apply(null, safeRows.map((row) => Number(row.value) || 0).concat([1]));
 
-    return classSet.size;
+    const chartRows = safeRows
+      .map((row) => {
+        const width = toPercent(row.value, maxValue);
+        return (
+          "<div class=\"simple-hbar-row\">" +
+          "<div class=\"simple-hbar-meta\"><span>" + escapeUnsafe(row.label) + "</span><span>" + formatValue(row.value) + "</span></div>" +
+          "<div class=\"simple-hbar-track\"><div class=\"simple-hbar-fill " + mapToneClass(row.tone) + "\" style=\"width:" + width.toFixed(1) + "%\"></div></div>" +
+          "</div>"
+        );
+      })
+      .join("");
+
+    return "<div class=\"simple-hbar-chart\">" + chartRows + "</div>";
   }
 
-  function toPercent(value, base) {
-    if (!Number.isFinite(base) || base <= 0) {
+  function getInsightClass(label) {
+    return label === "Good" ? "good" : "warn";
+  }
+
+  function isPendingStatus(status) {
+    const normalized = String(status || "").toLowerCase();
+    return normalized === "pending" || normalized.indexOf("correction") > -1;
+  }
+
+  function mapToneClass(tone) {
+    if (tone === "approved") {
+      return "tone-approved";
+    }
+    if (tone === "pending") {
+      return "tone-pending";
+    }
+    if (tone === "rejected") {
+      return "tone-rejected";
+    }
+    if (tone === "score") {
+      return "tone-score";
+    }
+    return "tone-neutral";
+  }
+
+  function getSafeMarks(submission) {
+    if (submission && Number.isFinite(submission.marks)) {
+      return Number(submission.marks);
+    }
+    if (submission && Number.isFinite(submission.suggestedMarks)) {
+      return Number(submission.suggestedMarks);
+    }
+    return 0;
+  }
+
+  function roundValue(value) {
+    return Math.round((Number(value) || 0) * 10) / 10;
+  }
+
+  function formatValue(value) {
+    const number = Number(value) || 0;
+    return Number.isInteger(number) ? String(number) : number.toFixed(1);
+  }
+
+  function toPercent(value, maxValue) {
+    if (!Number.isFinite(maxValue) || maxValue <= 0) {
       return 0;
     }
-    return (value / base) * 100;
+
+    return Math.max(0, Math.min(100, (Number(value) / maxValue) * 100));
+  }
+
+  function escapeUnsafe(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function handleAction(action, ctx) {
@@ -152,80 +290,11 @@ window.applyPageConfig({
       return true;
     }
 
-    if (action === "toggle-submission") {
-      ctx.state.submissionOpen = !ctx.state.submissionOpen;
-      ctx.addRecentActivity("Submission status set to " + (ctx.state.submissionOpen ? "ON" : "OFF"));
-      ctx.showToast("Submission is now " + (ctx.state.submissionOpen ? "ON" : "OFF") + ".", "info");
-      ctx.renderPage();
-      return true;
-    }
-
-    if (action === "toggle-evaluation") {
-      ctx.state.evaluationOpen = !ctx.state.evaluationOpen;
-      ctx.addRecentActivity("Evaluation status set to " + (ctx.state.evaluationOpen ? "ON" : "OFF"));
-      ctx.showToast("Evaluation is now " + (ctx.state.evaluationOpen ? "ON" : "OFF") + ".", "info");
-      ctx.renderPage();
-      return true;
-    }
-
     return false;
   }
 
-  function handleChange(event, ctx) {
+  function handleChange() {
     return false;
-  }
-
-  function getSuggestedAcademicYears(existingYears, count) {
-    const safeCount = Number.isFinite(count) && count > 0 ? count : 2;
-    const yearNumbers = existingYears
-      .map((value) => {
-        const parts = String(value || "").split("-");
-        const endYear = Number(parts[1]);
-        return Number.isFinite(endYear) ? endYear : null;
-      })
-      .filter((value) => Number.isFinite(value));
-
-    const latestEndYear = yearNumbers.length ? Math.max.apply(null, yearNumbers) : new Date().getFullYear();
-    const suggestions = [];
-
-    for (let i = 0; i < safeCount; i += 1) {
-      const start = latestEndYear + i;
-      const end = start + 1;
-      const label = String(start) + "-" + String(end);
-      if (existingYears.indexOf(label) === -1) {
-        suggestions.push(label);
-      }
-    }
-
-    return suggestions;
-  }
-
-  function getAvailableAcademicYears(ctx, activeYear) {
-    const yearsFromState = (ctx.state.academicYearState || []).map((item) => item.year);
-    const years = (ctx.academicYears || [])
-      .concat(yearsFromState)
-      .concat([ctx.state.selectedAcademicYear, activeYear])
-      .map((item) => String(item || "").trim())
-      .filter((item) => item.length > 0);
-
-    const uniqueYears = [];
-    years.forEach((item) => {
-      if (uniqueYears.indexOf(item) === -1) {
-        uniqueYears.push(item);
-      }
-    });
-
-    return uniqueYears;
-  }
-
-  function initializeCreateYearUiState(state) {
-    if (typeof state.showCreateYearField !== "boolean") {
-      state.showCreateYearField = false;
-    }
-
-    if (typeof state.pendingAcademicYear !== "string") {
-      state.pendingAcademicYear = "";
-    }
   }
 
   window.adminDashboardModule = {

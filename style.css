@@ -1126,6 +1126,143 @@ tbody tr:hover {
   gap: var(--space-3);
 }
 
+.stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.chart-panel {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.chart-panel .muted {
+  font-size: 0.86rem;
+}
+
+.insight-chip {
+  border-radius: 999px;
+  padding: 0.22rem 0.62rem;
+  border: 1px solid transparent;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.insight-chip.good {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.insight-chip.warn {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
+.simple-vbar-chart {
+  width: 100%;
+  min-height: 220px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: var(--space-3);
+}
+
+.simple-vbar-col {
+  flex: 1 1 0;
+  min-width: 72px;
+  display: grid;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.simple-vbar-value {
+  text-align: center;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.simple-vbar-track {
+  height: 150px;
+  border-radius: var(--radius-sm);
+  background: #e2e8f0;
+  border: 1px solid #dbe3ef;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.simple-vbar-fill {
+  width: 100%;
+  min-height: 3px;
+  border-radius: 8px 8px 0 0;
+}
+
+.simple-vbar-label {
+  text-align: center;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.simple-hbar-chart {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.simple-hbar-row {
+  display: grid;
+  gap: 6px;
+}
+
+.simple-hbar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.simple-hbar-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid #dbe3ef;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.simple-hbar-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+}
+
+.tone-approved {
+  background: linear-gradient(180deg, #16a34a, #22c55e);
+}
+
+.tone-pending {
+  background: linear-gradient(180deg, #f59e0b, #fbbf24);
+}
+
+.tone-rejected {
+  background: linear-gradient(180deg, #dc2626, #ef4444);
+}
+
+.tone-score {
+  background: linear-gradient(180deg, #2563eb, #0ea5e9);
+}
+
+.tone-neutral {
+  background: linear-gradient(180deg, #64748b, #94a3b8);
+}
+
 .progress-list {
   display: grid;
   gap: 0.6rem;
@@ -1386,5 +1523,19 @@ tbody tr:hover {
 
   .leaderboard-metric {
     text-align: left;
+  }
+
+  .simple-vbar-chart {
+    min-height: 200px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .simple-vbar-col {
+    min-width: 86px;
+  }
+
+  .simple-vbar-track {
+    height: 128px;
   }
 }
