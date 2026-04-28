@@ -4,6 +4,13 @@ window.applyPageConfig({
 });
 
 (function initAdminDashboardModule() {
+  let pendingChartPayload = null;
+  const chartInstances = {
+    submission: null,
+    category: null,
+    classPerformance: null
+  };
+
   function renderDashboard(ctx) {
     const selectedYear = String(ctx.state.selectedAcademicYear || "");
     const yearSubmissions = typeof ctx.getSubmissionsForYear === "function"
@@ -23,29 +30,14 @@ window.applyPageConfig({
     const categoryMetrics = buildCategoryContributionMetrics(yearSubmissions, ctx.criteriaCatalog);
     const classMetrics = buildClassPerformanceMetrics(yearSubmissions, ctx.students);
 
-    const statusInsightLabel = statusMetrics.approved >= (statusMetrics.pending + statusMetrics.rejected)
-      ? "Good"
-      : "Needs improvement";
-    const categoryInsightLabel = categoryMetrics.totalMarks > 0 ? "Good" : "Needs improvement";
-    const classInsightLabel = classMetrics.totalScore > 0 ? "Good" : "Needs improvement";
-
-    const submissionChart = renderVerticalChart([
-      { label: "Approved", value: statusMetrics.approved, tone: "approved" },
-      { label: "Pending", value: statusMetrics.pending, tone: "pending" },
-      { label: "Rejected", value: statusMetrics.rejected, tone: "rejected" }
-    ]);
-
-    const categoryChart = renderHorizontalChart([
-      { label: "Academics", value: categoryMetrics.academics, tone: "approved" },
-      { label: "Courses", value: categoryMetrics.courses, tone: "score" },
-      { label: "Internship", value: categoryMetrics.internship, tone: "pending" },
-      { label: "Others", value: categoryMetrics.others, tone: "neutral" }
-    ]);
-
-    const classChart = renderVerticalChart(classMetrics.rows);
+    pendingChartPayload = {
+      status: statusMetrics,
+      category: categoryMetrics,
+      classPerformance: classMetrics
+    };
 
     return (
-      "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Key numbers and simple charts for quick decisions.</p></div></section>" +
+      "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Simple cards with class-level dashboard graphs.</p></div></section>" +
       "<section class=\"cards-grid stats-grid\">" +
       "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Students</p></div><h3>" + totalStudents + "</h3></article>" +
       "<article class=\"stat-card\"><div class=\"stat-head\"><p>Total Submissions</p></div><h3>" + totalSubmissions + "</h3><p class=\"muted\">Academic Year " + escapeUnsafe(selectedYear) + "</p></article>" +
@@ -57,11 +49,129 @@ window.applyPageConfig({
       "<article class=\"panel\"><h3>System Status</h3><div class=\"meta-list\"><p><strong>Active Academic Year:</strong> " + escapeUnsafe(activeYear || "Not set") + "</p><p><strong>Viewing Year:</strong> " + escapeUnsafe(selectedYear || "-") + "</p><p><strong>Submission:</strong> <span class=\"status-pill " + submissionStatusClass + "\">" + submissionStatusLabel + "</span></p></div></article>" +
       "</section>" +
       "<section class=\"cards-grid two-panel-grid\">" +
-      "<article class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Submission Status</h3><span class=\"insight-chip " + getInsightClass(statusInsightLabel) + "\">" + statusInsightLabel + "</span></div><p class=\"muted\">Approved, Pending, Rejected</p>" + submissionChart + "</article>" +
-      "<article class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Category Contribution</h3><span class=\"insight-chip " + getInsightClass(categoryInsightLabel) + "\">" + categoryInsightLabel + "</span></div><p class=\"muted\">Academics, Courses, Internship, Others</p>" + categoryChart + "</article>" +
+      "<article class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Submission Status</h3></div><p class=\"muted\">Approved, Pending, Rejected</p><div class=\"chart-canvas-wrap\"><canvas id=\"admin-chart-submission-status\" aria-label=\"Submission Status Chart\"></canvas></div></article>" +
+      "<article class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Category Contribution</h3></div><p class=\"muted\">Academics, Courses, Internship, Others</p><div class=\"chart-canvas-wrap\"><canvas id=\"admin-chart-category-contribution\" aria-label=\"Category Contribution Chart\"></canvas></div></article>" +
       "</section>" +
-      "<section class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Class Performance</h3><span class=\"insight-chip " + getInsightClass(classInsightLabel) + "\">" + classInsightLabel + "</span></div><p class=\"muted\">Class-wise total approved score</p>" + classChart + "</section>"
+      "<section class=\"panel chart-panel\"><div class=\"panel-head\"><h3>Class Performance</h3></div><p class=\"muted\">Class name vs score</p><div class=\"chart-canvas-wrap\"><canvas id=\"admin-chart-class-performance\" aria-label=\"Class Performance Chart\"></canvas></div></section>"
     );
+  }
+
+  function afterRender() {
+    renderCharts();
+  }
+
+  function renderCharts() {
+    if (!window.Chart || !pendingChartPayload) {
+      return;
+    }
+
+    destroyExistingCharts();
+
+    const statusCanvas = document.getElementById("admin-chart-submission-status");
+    const categoryCanvas = document.getElementById("admin-chart-category-contribution");
+    const classCanvas = document.getElementById("admin-chart-class-performance");
+
+    if (!statusCanvas || !categoryCanvas || !classCanvas) {
+      return;
+    }
+
+    chartInstances.submission = new Chart(statusCanvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: ["Approved", "Pending", "Rejected"],
+        datasets: [
+          {
+            label: "Submissions",
+            data: [
+              pendingChartPayload.status.approved,
+              pendingChartPayload.status.pending,
+              pendingChartPayload.status.rejected
+            ],
+            backgroundColor: ["#16a34a", "#f59e0b", "#dc2626"],
+            borderRadius: 8
+          }
+        ]
+      },
+      options: createChartOptions("Count")
+    });
+
+    chartInstances.category = new Chart(categoryCanvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: ["Academics", "Courses", "Internship", "Others"],
+        datasets: [
+          {
+            label: "Marks",
+            data: [
+              pendingChartPayload.category.academics,
+              pendingChartPayload.category.courses,
+              pendingChartPayload.category.internship,
+              pendingChartPayload.category.others
+            ],
+            backgroundColor: ["#2563eb", "#0ea5e9", "#14b8a6", "#64748b"],
+            borderRadius: 8
+          }
+        ]
+      },
+      options: createChartOptions("Marks", true)
+    });
+
+    chartInstances.classPerformance = new Chart(classCanvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: pendingChartPayload.classPerformance.labels,
+        datasets: [
+          {
+            label: "Score",
+            data: pendingChartPayload.classPerformance.values,
+            backgroundColor: "#2563eb",
+            borderRadius: 8
+          }
+        ]
+      },
+      options: createChartOptions("Score")
+    });
+  }
+
+  function destroyExistingCharts() {
+    Object.keys(chartInstances).forEach((key) => {
+      if (chartInstances[key] && typeof chartInstances[key].destroy === "function") {
+        chartInstances[key].destroy();
+      }
+      chartInstances[key] = null;
+    });
+  }
+
+  function createChartOptions(yAxisTitle, horizontal) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: horizontal ? "y" : "x",
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: horizontal
+        ? {
+            x: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: yAxisTitle
+              }
+            }
+          }
+        : {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: yAxisTitle
+              }
+            }
+          }
+    };
   }
 
   function buildSubmissionStatusMetrics(submissions) {
@@ -70,14 +180,17 @@ window.applyPageConfig({
     let rejected = 0;
 
     (submissions || []).forEach((item) => {
-      const status = String(item.status || "").toLowerCase();
-      if (status === "approved") {
+      if (isApprovedStatus(item.status)) {
         approved += 1;
-      } else if (status === "rejected") {
-        rejected += 1;
-      } else if (isPendingStatus(status)) {
-        pending += 1;
+        return;
       }
+
+      if (isRejectedStatus(item.status)) {
+        rejected += 1;
+        return;
+      }
+
+      pending += 1;
     });
 
     return {
@@ -92,8 +205,7 @@ window.applyPageConfig({
       academics: 0,
       courses: 0,
       internship: 0,
-      others: 0,
-      totalMarks: 0
+      others: 0
     };
 
     const categoryByItemId = new Map();
@@ -104,7 +216,7 @@ window.applyPageConfig({
     });
 
     (submissions || []).forEach((submission) => {
-      if (String(submission.status || "").toLowerCase() !== "approved") {
+      if (!isApprovedStatus(submission.status)) {
         return;
       }
 
@@ -120,15 +232,12 @@ window.applyPageConfig({
       } else {
         contribution.others += marks;
       }
-
-      contribution.totalMarks += marks;
     });
 
     contribution.academics = roundValue(contribution.academics);
     contribution.courses = roundValue(contribution.courses);
     contribution.internship = roundValue(contribution.internship);
     contribution.others = roundValue(contribution.others);
-    contribution.totalMarks = roundValue(contribution.totalMarks);
 
     return contribution;
   }
@@ -138,7 +247,7 @@ window.applyPageConfig({
     const classScores = new Map();
 
     (submissions || []).forEach((submission) => {
-      if (String(submission.status || "").toLowerCase() !== "approved") {
+      if (!isApprovedStatus(submission.status)) {
         return;
       }
 
@@ -152,90 +261,31 @@ window.applyPageConfig({
       classScores.set(className, current + getSafeMarks(submission));
     });
 
-    const rows = Array.from(classScores.entries())
+    const sorted = Array.from(classScores.entries())
       .map((entry) => ({
         label: entry[0],
-        value: roundValue(entry[1]),
-        tone: "score"
+        value: roundValue(entry[1])
       }))
       .sort((a, b) => b.value - a.value);
 
     return {
-      rows: rows,
-      totalScore: roundValue(rows.reduce((sum, row) => sum + row.value, 0))
+      labels: sorted.map((item) => item.label),
+      values: sorted.map((item) => item.value)
     };
   }
 
-  function renderVerticalChart(rows) {
-    const safeRows = Array.isArray(rows) ? rows : [];
-    if (!safeRows.length) {
-      return "<p class=\"empty-state\">No data available.</p>";
-    }
-
-    const maxValue = Math.max.apply(null, safeRows.map((row) => Number(row.value) || 0).concat([1]));
-
-    const chartRows = safeRows
-      .map((row) => {
-        const height = toPercent(row.value, maxValue);
-        return (
-          "<div class=\"simple-vbar-col\">" +
-          "<p class=\"simple-vbar-value\">" + formatValue(row.value) + "</p>" +
-          "<div class=\"simple-vbar-track\"><div class=\"simple-vbar-fill " + mapToneClass(row.tone) + "\" style=\"height:" + height.toFixed(1) + "%\"></div></div>" +
-          "<p class=\"simple-vbar-label\">" + escapeUnsafe(row.label) + "</p>" +
-          "</div>"
-        );
-      })
-      .join("");
-
-    return "<div class=\"simple-vbar-chart\">" + chartRows + "</div>";
-  }
-
-  function renderHorizontalChart(rows) {
-    const safeRows = Array.isArray(rows) ? rows : [];
-    if (!safeRows.length) {
-      return "<p class=\"empty-state\">No data available.</p>";
-    }
-
-    const maxValue = Math.max.apply(null, safeRows.map((row) => Number(row.value) || 0).concat([1]));
-
-    const chartRows = safeRows
-      .map((row) => {
-        const width = toPercent(row.value, maxValue);
-        return (
-          "<div class=\"simple-hbar-row\">" +
-          "<div class=\"simple-hbar-meta\"><span>" + escapeUnsafe(row.label) + "</span><span>" + formatValue(row.value) + "</span></div>" +
-          "<div class=\"simple-hbar-track\"><div class=\"simple-hbar-fill " + mapToneClass(row.tone) + "\" style=\"width:" + width.toFixed(1) + "%\"></div></div>" +
-          "</div>"
-        );
-      })
-      .join("");
-
-    return "<div class=\"simple-hbar-chart\">" + chartRows + "</div>";
-  }
-
-  function getInsightClass(label) {
-    return label === "Good" ? "good" : "warn";
-  }
-
   function isPendingStatus(status) {
-    const normalized = String(status || "").toLowerCase();
-    return normalized === "pending" || normalized.indexOf("correction") > -1;
+    return !isApprovedStatus(status) && !isRejectedStatus(status);
   }
 
-  function mapToneClass(tone) {
-    if (tone === "approved") {
-      return "tone-approved";
-    }
-    if (tone === "pending") {
-      return "tone-pending";
-    }
-    if (tone === "rejected") {
-      return "tone-rejected";
-    }
-    if (tone === "score") {
-      return "tone-score";
-    }
-    return "tone-neutral";
+  function isApprovedStatus(status) {
+    const normalized = String(status || "").trim().toLowerCase();
+    return normalized === "approved" || normalized === "locked" || normalized === "evaluated";
+  }
+
+  function isRejectedStatus(status) {
+    const normalized = String(status || "").trim().toLowerCase();
+    return normalized === "rejected";
   }
 
   function getSafeMarks(submission) {
@@ -250,19 +300,6 @@ window.applyPageConfig({
 
   function roundValue(value) {
     return Math.round((Number(value) || 0) * 10) / 10;
-  }
-
-  function formatValue(value) {
-    const number = Number(value) || 0;
-    return Number.isInteger(number) ? String(number) : number.toFixed(1);
-  }
-
-  function toPercent(value, maxValue) {
-    if (!Number.isFinite(maxValue) || maxValue <= 0) {
-      return 0;
-    }
-
-    return Math.max(0, Math.min(100, (Number(value) / maxValue) * 100));
   }
 
   function escapeUnsafe(value) {
@@ -300,6 +337,7 @@ window.applyPageConfig({
   window.adminDashboardModule = {
     renderDashboard: renderDashboard,
     handleAction: handleAction,
-    handleChange: handleChange
+    handleChange: handleChange,
+    afterRender: afterRender
   };
 })();
