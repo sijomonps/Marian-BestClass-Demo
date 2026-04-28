@@ -5,7 +5,8 @@ const roleConfig = {
     menu: [
       { page: "dashboard", label: "Dashboard", icon: "📊" },
       { page: "submit", label: "Submit Activity", icon: "📝" },
-      { page: "submissions", label: "My Submissions", icon: "📁" }
+      { page: "submissions", label: "My Submissions", icon: "📁" },
+      { page: "students", label: "Class Management", icon: "👥" }
     ]
   },
   teacher: {
@@ -13,7 +14,8 @@ const roleConfig = {
     heading: "Teacher Workspace",
     menu: [
       { page: "dashboard", label: "Dashboard", icon: "📊" },
-      { page: "verification", label: "Verification", icon: "✅" }
+      { page: "verification", label: "Verification", icon: "✅" },
+      { page: "students", label: "Student Management", icon: "👥" }
     ]
   },
   evaluator: {
@@ -931,11 +933,19 @@ function renderPage() {
       content = renderStudentSubmitPage();
     } else if (state.activePage === "submissions") {
       content = renderStudentSubmissionsPage();
+    } else if (state.activePage === "students") {
+      content = renderStudentManagementPage();
     } else {
       content = renderStudentDashboard();
     }
   } else if (state.currentRole === "teacher") {
-    content = state.activePage === "verification" ? renderTeacherVerificationPage() : renderTeacherDashboard();
+    if (state.activePage === "verification") {
+      content = renderTeacherVerificationPage();
+    } else if (state.activePage === "students") {
+      content = renderStudentManagementPage();
+    } else {
+      content = renderTeacherDashboard();
+    }
   } else if (state.currentRole === "evaluator") {
     content = state.activePage === "evaluation" ? renderEvaluatorEvaluationPage() : renderEvaluatorDashboard();
   } else if (state.currentRole === "admin") {
@@ -1147,8 +1157,8 @@ function renderStudentProgressSection(progress) {
     "<p class=\"muted\">Progress: " + progress.completedCount + " / " + progress.total + "</p>" +
     "<div class=\"simple-progress-track\"><div class=\"simple-progress-fill\" style=\"width:" + progress.percent.toFixed(1) + "%\"></div></div>" +
     "<div class=\"progress-pills\">" +
-    "<span class=\"progress-pill progress-pill-complete\">âœ” Completed " + progress.completedCount + "</span>" +
-    "<span class=\"progress-pill progress-pill-remaining\">â¬œ Remaining " + progress.remainingCount + "</span>" +
+    "<span class=\"progress-pill progress-pill-complete\">✔ Completed " + progress.completedCount + "</span>" +
+    "<span class=\"progress-pill progress-pill-remaining\">⏳ Remaining " + progress.remainingCount + "</span>" +
     "</div>" +
     "</section>"
   );
@@ -1157,7 +1167,7 @@ function renderStudentProgressSection(progress) {
 function renderStudentChecklistSection(categories) {
   const rows = categories
     .map((item) => {
-      const icon = item.completed ? "âœ”" : "â¬œ";
+      const icon = item.completed ? "✔" : "⏳";
       const action = item.completed
         ? "<span class=\"check-done\">Done</span>"
         : "<button type=\"button\" class=\"btn ghost mini-add-btn\" data-submit-category=\"" + escapeAttribute(item.id) + "\">ï¼‹</button>";
@@ -1193,8 +1203,8 @@ function renderStudentDashboard() {
     "<section class=\"panel\">" +
     "<div class=\"panel-head\"><h3>Quick Actions</h3></div>" +
     "<div class=\"button-row\">" +
-    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"submit\">âœ¦ Submit New Activity</button>" +
-    "<button type=\"button\" class=\"btn ghost\" data-page-jump=\"submissions\">â–¦ View My Submissions</button>" +
+    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"submit\">➕ Submit New Activity</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-page-jump=\"submissions\">📁 View My Submissions</button>" +
     "</div>" +
     "</section>"
   );
@@ -1605,7 +1615,8 @@ function renderStudentSubmissionsSection() {
     ? pageInfo.items
         .map((record) => {
           const editAction = record.canEditByStudent
-            ? "<button type=\"button\" class=\"btn ghost\" data-student-edit-submission=\"" + record.id + "\">Edit</button>"
+            ? "<div class=\"button-row\" style=\"display:flex;gap:4px;\"><button type=\"button\" class=\"btn ghost\" data-student-edit-submission=\"" + record.id + "\">Edit</button>" +
+              "<button type=\"button\" class=\"btn danger\" data-student-delete-submission=\"" + record.id + "\">Delete</button></div>"
             : "<span class=\"muted\">Locked</span>";
 
           return (
@@ -1625,12 +1636,7 @@ function renderStudentSubmissionsSection() {
     : "<tr><td colspan=\"8\" class=\"empty-row\">No submissions match your filters.</td></tr>";
 
   return (
-    "<div class=\"list-toolbar\">" +
-    "<div class=\"field\"><label for=\"student-submission-search\">Search</label><input id=\"student-submission-search\" type=\"search\" placeholder=\"Search name, category, email\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"student-submissions\" data-list-filter=\"search\" /></div>" +
-    "<div class=\"field\"><label for=\"student-submission-department\">Department</label><select id=\"student-submission-department\" data-list-target=\"student-submissions\" data-list-filter=\"department\">" + renderFilterOptions(departmentOptions, viewState.department, "All Departments") + "</select></div>" +
-    "<div class=\"field\"><label for=\"student-submission-class\">Class</label><select id=\"student-submission-class\" data-list-target=\"student-submissions\" data-list-filter=\"className\">" + renderFilterOptions(classOptions, viewState.className, "All Classes") + "</select></div>" +
-    "<div class=\"field\"><label for=\"student-submission-status\">Status</label><select id=\"student-submission-status\" data-list-target=\"student-submissions\" data-list-filter=\"status\">" + renderFilterOptions(statusOptions, viewState.status, "All Statuses") + "</select></div>" +
-    "</div>" +
+    "" +
     renderListSummary(pageInfo) +
     "<div class=\"table-wrap\">" +
     "<table><thead><tr><th>Category</th><th>Item</th><th>Evidence</th><th>Description</th><th>Status</th><th>Rule Marks</th><th>Final Marks</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table>" +
@@ -1649,6 +1655,63 @@ function renderStudentSubmissionsPage() {
     "</section>"
   );
 }
+
+function renderStudentManagementPage() {
+  const isTeacher = state.currentRole === "teacher";
+  const overrideClass = "BSc CS A";
+
+  const myStudents = users.filter(u => u.role === "student" && u.class === overrideClass);
+
+  let rows = myStudents.map(u => 
+      "<tr><td>" + escapeHtml(u.name) + "</td><td>" + escapeHtml(u.email) + "</td><td>" + escapeHtml(u.department) + "</td>" +
+      "<td><button class='btn danger' data-delete-student='" + u.id + "'>Delete</button></td></tr>"
+  ).join("");
+  
+  if (!rows) rows = "<tr><td colspan='4'>No students found.</td></tr>";
+
+  const bulkSection = isTeacher ? 
+      ("<div class=\"panel\" style=\"margin-top:20px;\">" +
+       "<h3>Bulk Upload Students (CSV)</h3>" +
+       "<form id=\"bulk-upload-form\" class=\"stack-form\">" +
+       "<div class=\"field\"><label>CSV File</label><input type=\"file\" accept=\".csv\" required></div>" +
+       "<button type=\"submit\" class=\"btn ghost\">Upload CSV</button>" +
+       "</form>" +
+       "</div>") : "";
+
+  const extraTeacherFields = isTeacher ? 
+      ("<div class=\"field\"><label>Email</label><input type=\"email\" name=\"email\" required placeholder=\"student@college.edu\"></div>" +
+       "<div class=\"field\"><label>Password</label><input type=\"password\" name=\"password\" required placeholder=\"Password\"></div>" +
+       "<div class=\"field\"><label>Department</label><input type=\"text\" name=\"department\" required placeholder=\"Computer Science\"></div>") : "";
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div><h1>" + (isTeacher ? 'Student Management' : 'Class Management') + "</h1>" +
+    "<p class=\"muted\">Manage students in your class.</p></div>" +
+    "</section>" +
+    "<div style=\"display:flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;\">" +
+       "<div class=\"panel\" style=\"flex: 2; min-width: 300px;\">" +
+         "<h3>Class List</h3>" +
+         "<div class=\"table-wrap\">" +
+           "<table>" +
+             "<thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Action</th></tr></thead>" +
+             "<tbody>" + rows + "</tbody>" +
+           "</table>" +
+         "</div>" +
+       "</div>" +
+       "<div style=\"flex: 1; display:flex; flex-direction:column; min-width: 300px;\">" +
+         "<div class=\"panel\">" +
+           "<h3>Manual Add Student</h3>" +
+           "<form id=\"add-student-form\" class=\"stack-form\">" +
+             "<div class=\"field\"><label>Name</label><input type=\"text\" name=\"name\" required placeholder=\"Student Name\"></div>" +
+             extraTeacherFields +
+             "<button type=\"submit\" class=\"btn primary\">Add Student</button>" +
+           "</form>" +
+         "</div>" +
+         bulkSection +
+       "</div>" +
+    "</div>"
+  );
+}
 function renderTeacherDashboard() {
   const metrics = buildSummaryMetrics(submissions);
 
@@ -1661,97 +1724,89 @@ function renderTeacherDashboard() {
     renderRecentActivityPanel(submissions, "Latest Verification Items", 5) +
     "<section class=\"panel\">" +
     "<div class=\"button-row\">" +
-    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"verification\">âœ“ Open Verification Desk</button>" +
+    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"verification\">✔ Open Verification Desk</button>" +
     "</div>" +
     "</section>"
   );
 }
 
 function renderTeacherVerificationSection() {
-  ensureListViewState();
-  const viewState = state.listViews.teacherVerification;
+  const teacherClass = "BSc CS A";
   const records = submissions
-    .slice()
+    .filter(item => {
+       const user = findUserById(item.studentId);
+       return user && user.class === teacherClass;
+    })
     .sort((a, b) => b.id - a.id)
-    .map((item) => createSubmissionViewRecord(item));
+    .map(item => createSubmissionViewRecord(item));
 
-  const departmentOptions = buildUniqueOptions(records, (record) => record.department);
-  if (!hasFilterOption(viewState.department, departmentOptions)) {
-    viewState.department = allFilterValue;
+  state.teacherTab = state.teacherTab || "my-class";
+
+  let tabContent = "";
+  if (state.teacherTab === "my-class") {
+    const studentMap = {};
+    records.forEach(r => {
+      if(!studentMap[r.studentId]) studentMap[r.studentId] = { name: r.studentName, count: 0 };
+      studentMap[r.studentId].count++;
+    });
+    
+    let rows = Object.values(studentMap).map(s => "<tr><td>" + escapeHtml(s.name) + "</td><td>" + s.count + "</td></tr>").join("");
+    if(!rows) rows = "<tr><td colspan='2'>No students in your class have submitted activities yet.</td></tr>";
+
+    tabContent = "<div class='table-wrap'><table><thead><tr><th>Student Name</th><th>Submitted Activities</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+
+  } else if (state.teacherTab === "pending") {
+    const pendingRecords = records.filter(r => isSubmissionSubmitted(r.status));
+    tabContent = buildTeacherTable(pendingRecords);
+  } else if (state.teacherTab === "reviewed") {
+    const reviewedRecords = records.filter(r => !isSubmissionSubmitted(r.status) && r.status !== workflowStatus.DRAFT);
+    tabContent = buildTeacherTable(reviewedRecords);
   }
-
-  const classOptions = buildUniqueOptions(filterRecordsByDepartment(records, viewState.department), (record) => record.className);
-  if (!hasFilterOption(viewState.className, classOptions)) {
-    viewState.className = allFilterValue;
-  }
-
-  const hierarchyRecords = filterRecordsByClass(filterRecordsByDepartment(records, viewState.department), viewState.className);
-  const studentOptions = buildStudentOptions(hierarchyRecords);
-  if (!hasFilterOption(viewState.studentId, studentOptions)) {
-    viewState.studentId = allFilterValue;
-  }
-
-  const statusOptions = buildUniqueOptions(records, (record) => record.status);
-  if (!hasFilterOption(viewState.status, statusOptions)) {
-    viewState.status = allFilterValue;
-  }
-
-  const filtered = filterSubmissionViewRecords(records, viewState, true);
-  const pageInfo = paginateListItems(filtered, viewState.currentPage, listPageSize);
-  viewState.currentPage = pageInfo.currentPage;
-
-  const cards = pageInfo.items.length
-    ? pageInfo.items
-        .map((record) => {
-          const actionHtml = record.canTeacherAct
-            ? "<div class=\"button-row\">" +
-              "<button type=\"button\" class=\"btn success\" data-teacher-action=\"" + workflowStatus.VERIFIED + "\" data-id=\"" + record.id + "\">Verify</button>" +
-              "<button type=\"button\" class=\"btn warn\" data-teacher-action=\"" + workflowStatus.CORRECTION + "\" data-id=\"" + record.id + "\">Request Correction</button>" +
-              "<button type=\"button\" class=\"btn danger\" data-teacher-action=\"" + workflowStatus.REJECTED + "\" data-id=\"" + record.id + "\">Reject</button>" +
-              "</div>"
-            : "<p class=\"muted\">No teacher action available for this status.</p>";
-
-          return (
-            "<article class=\"submission-card\">" +
-            "<div class=\"submission-head\"><h4>" + escapeHtml(record.studentName) + "</h4><span class=\"status-pill " + getStatusClass(record.status) + "\">" + escapeHtml(record.status) + "</span></div>" +
-            "<div class=\"meta-list\">" +
-            "<p><strong>Department:</strong> " + escapeHtml(record.department) + "</p>" +
-            "<p><strong>Class:</strong> " + escapeHtml(record.className) + "</p>" +
-            "<p><strong>Email:</strong> " + escapeHtml(record.email || "-") + "</p>" +
-            "<p><strong>Category:</strong> " + escapeHtml(record.category) + "</p>" +
-            "<p><strong>Item:</strong> " + escapeHtml(record.itemTitle) + "</p>" +
-            "<p><strong>Rule Type:</strong> " + escapeHtml(getCriteriaTypeLabel(record.criteriaItem ? record.criteriaItem.type : "fixed")) + "</p>" +
-            "<p><strong>Evidence:</strong> " + escapeHtml(record.evidenceSummary) + "</p>" +
-            "<p><strong>Rule Marks Preview:</strong> " + safeMark(record.previewMarks).toFixed(1) + "</p>" +
-            "<p><strong>Description:</strong> " + escapeHtml(record.description) + "</p>" +
-            "<p><strong>Proof:</strong> " + escapeHtml(record.proof) + "</p>" +
-            "</div>" +
-            "<div class=\"field\"><label>Teacher Remark</label><input type=\"text\" data-remark-input=\"" + record.id + "\" value=\"" + escapeAttribute(record.submission.remarks || "") + "\" placeholder=\"Add a remark\" /></div>" +
-            actionHtml +
-            "</article>"
-          );
-        })
-        .join("")
-    : "<p class=\"empty-state\">No submissions match your filters.</p>";
 
   return (
-    "<section class=\"panel hierarchy-panel\">" +
-    "<div class=\"panel-head\"><h3>Hierarchy View</h3></div>" +
-    "<div class=\"list-toolbar\">" +
-    "<div class=\"field\"><label for=\"teacher-verification-search\">Search</label><input id=\"teacher-verification-search\" type=\"search\" placeholder=\"Search student name...\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"teacher-verification\" data-list-filter=\"search\" /></div>" +
-    "<div class=\"field\"><label for=\"teacher-verification-department\">Department</label><select id=\"teacher-verification-department\" data-list-target=\"teacher-verification\" data-list-filter=\"department\">" + renderFilterOptions(departmentOptions, viewState.department, "All Departments") + "</select></div>" +
+    "<section class=\"panel\">" +
+    "<div class=\"button-row\" style=\"margin-bottom:20px;\">" +
+    "<button type=\"button\" class=\"btn " + (state.teacherTab === "my-class" ? "primary" : "ghost") + "\" data-teacher-tab=\"my-class\">My Class</button>" +
+    "<button type=\"button\" class=\"btn " + (state.teacherTab === "pending" ? "primary" : "ghost") + "\" data-teacher-tab=\"pending\">Pending</button>" +
+    "<button type=\"button\" class=\"btn " + (state.teacherTab === "reviewed" ? "primary" : "ghost") + "\" data-teacher-tab=\"reviewed\">Reviewed</button>" +
     "</div>" +
-    renderListSummary(pageInfo) +
-    (pageInfo.items.length ? "<div class=\"submission-grid\">" + cards + "</div>" : cards) +
-    renderPaginationControls("teacher-verification", pageInfo) +
+    tabContent +
     "</section>"
   );
+}
+
+function buildTeacherTable(records) {
+  if (!records.length) return "<p class='empty-state'>No submissions found in this tab.</p>";
+  const cards = records.map(record => {
+    const actionHtml = record.canTeacherAct
+      ? "<div class=\"button-row\">" +
+        "<button type=\"button\" class=\"btn success\" data-teacher-action=\"" + workflowStatus.VERIFIED + "\" data-id=\"" + record.id + "\">✔ Verify</button>" +
+        "<button type=\"button\" class=\"btn warn\" data-teacher-action=\"" + workflowStatus.CORRECTION + "\" data-id=\"" + record.id + "\">Request Correction</button>" +
+        "<button type=\"button\" class=\"btn danger\" data-teacher-action=\"" + workflowStatus.REJECTED + "\" data-id=\"" + record.id + "\">✖ Reject</button>" +
+        "</div>"
+      : "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-teacher-edit-locked=\"" + record.id + "\">Edit Submission Status</button></div>";
+
+    return (
+      "<article class=\"submission-card\">" +
+      "<div class=\"submission-head\"><h4>" + escapeHtml(record.studentName) + "</h4><span class=\"status-pill " + getStatusClass(record.status) + "\">" + escapeHtml(record.status) + "</span></div>" +
+      "<div class=\"meta-list\">" +
+      "<p><strong>Category:</strong> " + escapeHtml(record.category) + "</p>" +
+      "<p><strong>Item:</strong> " + escapeHtml(record.itemTitle) + "</p>" +
+      "<p><strong>Description:</strong> " + escapeHtml(record.description) + "</p>" +
+      "</div>" +
+      "<div class=\"button-row\" style=\"margin-top:12px;margin-bottom:12px;\"><button type=\"button\" class=\"btn ghost full\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">📄 View Document</button></div>" +
+      "<div class=\"field\"><label>Teacher Remark</label><input type=\"text\" data-remark-input=\"" + record.id + "\" value=\"" + escapeAttribute(record.submission.remarks || "") + "\" placeholder=\"Add a remark\" /></div>" +
+      actionHtml +
+      "</article>"
+    );
+  }).join("");
+  return "<div class='submission-grid'>" + cards + "</div>";
 }
 
 function renderTeacherVerificationPage() {
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Verification</h1><p class=\"muted\">Teacher can move only Submitted items to Verified, Correction, or Rejected.</p></div>" +
+    "<div><h1>Verification</h1></div>" +
     "</section>" +
     "<div id=\"teacher-verification-root\">" + renderTeacherVerificationSection() + "</div>"
   );
@@ -1789,126 +1844,77 @@ function renderEvaluatorDashboard() {
 }
 
 function renderEvaluatorEvaluationSection() {
-  ensureListViewState();
-  const viewState = state.listViews.evaluatorEvaluation;
-  const records = submissions
-    .filter((item) => isSubmissionVerified(item.status) || isSubmissionLocked(item.status))
-    .sort((a, b) => b.id - a.id)
-    .map((item) => createSubmissionViewRecord(item));
+  state.evaluatorTab = state.evaluatorTab || "evaluation";
 
-  const departmentOptions = buildUniqueOptions(records, (record) => record.department);
-  if (!hasFilterOption(viewState.department, departmentOptions)) {
-    viewState.department = allFilterValue;
+  let tabContent = "";
+  if (state.evaluatorTab === "evaluation") {
+      const records = submissions
+        .filter(item => isSubmissionVerified(item.status) || isSubmissionLocked(item.status))
+        .sort((a, b) => b.id - a.id)
+        .map(item => createSubmissionViewRecord(item));
+
+      const cards = records.map(record => {
+          const currentMarks = record.finalMarks !== null ? record.finalMarks : record.previewMarks;
+          const marksHtml = record.canEvaluate
+          ? "<div class=\"field eval-manual-field\"><label>Manual Marks</label><input data-evaluator-manual=\"" + record.id + "\" type=\"number\" step=\"0.5\" value=\"" + (Number.isFinite(record.submission.marks) ? record.submission.marks : "") + "\" placeholder=\"Auto: " + record.previewMarks + "\" /></div>" +
+            "<div class=\"button-row\"><button type=\"button\" class=\"btn primary full\" data-evaluator-verify-save=\"" + record.id + "\">Verify & Save</button></div>"
+          : "<div class=\"meta-list\" style=\"margin-bottom:8px;\"><p><strong>Locked Marks:</strong> " + currentMarks + "</p></div>" +
+            "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost full\" data-evaluator-edit-marks=\"" + record.id + "\">Edit Marks</button></div>";
+
+        return (
+          "<article class=\"submission-card\">" +
+          "<div class=\"submission-head\"><h4>" + escapeHtml(record.studentName) + "</h4><span class=\"status-pill " + getStatusClass(record.status) + "\">" + escapeHtml(record.status) + "</span></div>" +
+          "<div class=\"meta-list\">" +
+          "<p><strong>Category:</strong> " + escapeHtml(record.category) + "</p>" +
+          "<p><strong>Rule Marks:</strong> " + safeMark(record.previewMarks).toFixed(1) + "</p>" +
+          "</div>" +
+          "<div class=\"button-row\" style=\"margin-top:12px;margin-bottom:12px;\"><button type=\"button\" class=\"btn ghost full\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">📄 View Document</button></div>" +
+          marksHtml +
+          "</article>"
+        );
+      }).join("");
+      tabContent = cards ? "<div class='submission-grid'>" + cards + "</div>" : "<p class='empty-state'>No verified submissions to evaluate.</p>";
+  } else if (state.evaluatorTab === "results") {
+      const classScores = {};
+      submissions.filter(s => s.status === workflowStatus.LOCKED || s.status === workflowStatus.EVALUATED).forEach(s => {
+         const user = findUserById(s.studentId);
+         if (user && user.class) {
+             if (!classScores[user.class]) classScores[user.class] = 0;
+             classScores[user.class] += getSubmissionEffectiveMarks(s);
+         }
+      });
+      
+      const ranked = Object.keys(classScores).map(c => ({ className: c, score: classScores[c] })).sort((a,b) => b.score - a.score);
+      const maxScore = ranked.length ? Math.max(...ranked.map(r => r.score), 10) : 10;
+
+      let resultRows = ranked.map((r, i) => {
+         const percent = Math.min((r.score / maxScore) * 100, 100);
+         return "<div style='margin-bottom: 20px;'>" +
+                  "<div style='display:flex; justify-content:space-between; margin-bottom:5px;'><strong>#" + (i+1) + " " + escapeHtml(r.className) + "</strong><span>" + r.score.toFixed(1) + " Points</span></div>" +
+                  "<div class='simple-progress-track'><div class='simple-progress-fill' style='width:" + percent + "%; background-color: var(--primary);'></div></div>" +
+                "</div>";
+      }).join("");
+
+      tabContent = ranked.length ? "<div style='padding:15px; background:var(--surface); border-radius:var(--radius);'>" + resultRows + "</div>" : "<p class='empty-state'>No scored classes yet.</p>";
   }
-
-  const classOptions = buildUniqueOptions(filterRecordsByDepartment(records, viewState.department), (record) => record.className);
-  if (!hasFilterOption(viewState.className, classOptions)) {
-    viewState.className = allFilterValue;
-  }
-
-  const hierarchyRecords = filterRecordsByClass(filterRecordsByDepartment(records, viewState.department), viewState.className);
-  const studentOptions = buildStudentOptions(hierarchyRecords);
-  if (!hasFilterOption(viewState.studentId, studentOptions)) {
-    viewState.studentId = allFilterValue;
-  }
-
-  const statusOptions = buildUniqueOptions(records, (record) => record.status);
-  if (!hasFilterOption(viewState.status, statusOptions)) {
-    viewState.status = allFilterValue;
-  }
-
-  const filtered = filterSubmissionViewRecords(records, viewState, true);
-  const pendingRecords = filtered.filter((record) => isSubmissionVerified(record.status));
-  const completedRecords = filtered.filter((record) => isSubmissionLocked(record.status));
-
-  const pendingPageInfo = paginateListItems(pendingRecords, viewState.pendingPage, listPageSize);
-  const completedPageInfo = paginateListItems(completedRecords, viewState.completedPage, listPageSize);
-  viewState.pendingPage = pendingPageInfo.currentPage;
-  viewState.completedPage = completedPageInfo.currentPage;
 
   return (
-    "<section class=\"panel hierarchy-panel\">" +
-    "<div class=\"panel-head\"><h3>Hierarchy View</h3></div>" +
-    "<div class=\"list-toolbar\">" +
-    "<div class=\"field\"><label for=\"evaluator-evaluation-search\">Search</label><input id=\"evaluator-evaluation-search\" type=\"search\" placeholder=\"Search student name...\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"search\" /></div>" +
-    "<div class=\"field\"><label for=\"evaluator-evaluation-department\">Department</label><select id=\"evaluator-evaluation-department\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"department\">" + renderFilterOptions(departmentOptions, viewState.department, "All Departments") + "</select></div>" +
+    "<section class=\"panel\">" +
+    "<div class=\"button-row\" style=\"margin-bottom:20px;\">" +
+    "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "evaluation" ? "primary" : "ghost") + "\" data-evaluator-tab=\"evaluation\">Evaluation</button>" +
+    "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "results" ? "primary" : "ghost") + "\" data-evaluator-tab=\"results\">Results</button>" +
     "</div>" +
-    renderListSummary({
-      totalItems: pendingPageInfo.totalItems + completedPageInfo.totalItems,
-      startIndex: (pendingPageInfo.totalItems + completedPageInfo.totalItems) > 0 ? 1 : 0,
-      endIndex: pendingPageInfo.totalItems + completedPageInfo.totalItems
-    }) +
-    "</section>" +
-    renderEvaluatorQueueSection("Pending", "pending", pendingPageInfo, "No verified submissions waiting for evaluation.", "evaluator-pending") +
-    renderEvaluatorQueueSection("Completed", "completed", completedPageInfo, "No locked submissions yet.", "evaluator-completed")
+    tabContent +
+    "</section>"
   );
 }
 
 function renderEvaluatorEvaluationPage() {
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Evaluation</h1><p class=\"muted\">Use Verify &amp; Save once per Verified item. Saved items move to Locked.</p></div>" +
+    "<div><h1>Evaluation Workspace</h1></div>" +
     "</section>" +
     "<div id=\"evaluator-evaluation-root\">" + renderEvaluatorEvaluationSection() + "</div>"
-  );
-}
-
-function renderEvaluatorQueueSection(title, sectionType, pageInfo, emptyMessage, paginationTarget) {
-  const sectionClass = sectionType === "completed" ? "eval-section eval-section-completed" : "eval-section eval-section-pending";
-  const badgeClass = sectionType === "completed" ? "eval-title-badge eval-title-badge-completed" : "eval-title-badge eval-title-badge-pending";
-  const cards = pageInfo.items.length
-    ? pageInfo.items.map((record) => renderEvaluatorQueueCard(record, sectionType)).join("")
-    : "<p class=\"empty-state\">" + escapeHtml(emptyMessage) + "</p>";
-
-  return (
-    "<section class=\"panel " + sectionClass + "\">" +
-    "<div class=\"eval-section-head\">" +
-    "<div><span class=\"" + badgeClass + "\">" + escapeHtml(title) + "</span><h3>" + escapeHtml(title) + " Submissions</h3></div>" +
-    "<p class=\"muted\">" + pageInfo.totalItems + " item" + (pageInfo.totalItems === 1 ? "" : "s") + "</p>" +
-    "</div>" +
-    (pageInfo.items.length ? "<div class=\"submission-grid eval-grid\">" + cards + "</div>" : cards) +
-    renderPaginationControls(paginationTarget, pageInfo) +
-    "</section>"
-  );
-}
-
-function renderEvaluatorQueueCard(record, sectionType) {
-  const item = record.submission;
-  const autoMarks = calculateMarksByRule(item, record.criteriaItem);
-  const currentMarks = Number.isFinite(item.marks) ? item.marks : "";
-  const minMarks = getCriteriaMinMarks(record.criteriaItem, item);
-  const maxMarks = getCriteriaMaxMarks(record.criteriaItem, item);
-  const transition = state.evaluatorTransition;
-  let transitionClass = "";
-
-  if (transition && transition.submissionId === item.id) {
-    if (transition.direction === "to-completed" && sectionType === "completed") {
-      transitionClass = " eval-card-enter-completed";
-    } else if (transition.direction === "to-pending" && sectionType === "pending") {
-      transitionClass = " eval-card-enter-pending";
-    }
-  }
-
-  const actionHtml = sectionType === "pending"
-    ? "<div class=\"field eval-manual-field\"><label for=\"eval-manual-" + item.id + "\">Manual Marks (Optional)</label><input id=\"eval-manual-" + item.id + "\" data-evaluator-manual=\"" + item.id + "\" type=\"number\" min=\"" + minMarks + "\" max=\"" + maxMarks + "\" step=\"0.5\" placeholder=\"Leave blank to use auto marks\" value=\"" + escapeAttribute(currentMarks === autoMarks ? "" : currentMarks) + "\" /></div>" +
-      "<div class=\"button-row\"><button type=\"button\" class=\"btn primary full\" data-evaluator-verify-save=\"" + item.id + "\">Verify &amp; Save</button></div>"
-    : "<div class=\"meta-list\"><p><strong>Status:</strong> Locked</p><p><strong>Marks:</strong> " + safeMark(getSubmissionEffectiveMarks(item)).toFixed(1) + "</p><p><strong>Evaluated By:</strong> " + escapeHtml(item.evaluatedBy || "-") + "</p></div>";
-
-  return (
-    "<article class=\"submission-card eval-card eval-card-" + sectionType + transitionClass + "\">" +
-    "<div class=\"submission-head\"><h4>" + escapeHtml(record.itemTitle) + "</h4><span class=\"status-pill " + (sectionType === "completed" ? "status-approved" : "status-pending") + "\">" + (sectionType === "completed" ? "Locked" : "Verified") + "</span></div>" +
-    "<div class=\"meta-list\">" +
-    "<p><strong>Student:</strong> " + escapeHtml(record.studentName) + "</p>" +
-    "<p><strong>Email:</strong> " + escapeHtml(record.email || "-") + "</p>" +
-    "<p><strong>Department:</strong> " + escapeHtml(record.department) + "</p>" +
-    "<p><strong>Class:</strong> " + escapeHtml(record.className) + "</p>" +
-    "<p><strong>Category:</strong> " + escapeHtml(record.category) + "</p>" +
-    "<p><strong>Description:</strong> " + escapeHtml(item.description) + "</p>" +
-    "<p><strong>Proof:</strong> " + escapeHtml(record.proof) + "</p>" +
-    "<p><strong>Auto Marks:</strong> " + autoMarks.toFixed(1) + "</p>" +
-    "</div>" +
-    actionHtml +
-    "</article>"
   );
 }
 
@@ -2045,7 +2051,7 @@ function renderAdminCriteriaPage() {
     "<div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + fixedSelected + ">Fixed</option><option value=\"count\"" + countSelected + ">Count Based</option><option value=\"range\"" + rangeSelected + ">Range Based</option><option value=\"boolean\"" + booleanSelected + ">Boolean</option><option value=\"negative\"" + negativeSelected + ">Negative Marks</option></select></div>" +
     "<div class=\"field\"><label for=\"criteria-item-marks\">Marks (fixed/count/negative)</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div>" +
     "<div class=\"field\"><label for=\"criteria-item-rules\">Range Rules (for range type)</label><textarea id=\"criteria-item-rules\" name=\"rules\" placeholder=\"90-100:5, 80-89.99:4\">" + escapeHtml(editingItem ? formatRulesText(editingItem.rules || []) : "") + "</textarea></div>" +
-    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "âœŽ Update Item" : "ï¼‹ Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost " + (editingItem ? "" : "hidden") + "\">Cancel</button></div>" +
+    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "✏️ Update Item" : "➕ Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost " + (editingItem ? "" : "hidden") + "\">Cancel</button></div>" +
     "</form></article></section>" +
     "<section class=\"panel\"><h3>Criteria by Category</h3><div class=\"table-wrap\"><table><thead><tr><th>Category</th><th>Item</th><th>Type</th><th>Marks / Rules</th><th>Actions</th></tr></thead><tbody>" + groupedRows + "</tbody></table></div></section>"
   );
@@ -2169,6 +2175,31 @@ function handlePageClick(event) {
     return;
   }
 
+  const teacherTabButton = event.target.closest("button[data-teacher-tab]");
+  if (teacherTabButton) {
+    state.teacherTab = teacherTabButton.dataset.teacherTab;
+    renderPage();
+    return;
+  }
+
+  const evaluatorTabButton = event.target.closest("button[data-evaluator-tab]");
+  if (evaluatorTabButton) {
+    state.evaluatorTab = evaluatorTabButton.dataset.evaluatorTab;
+    renderPage();
+    return;
+  }
+  
+  const viewDocButton = event.target.closest("button[data-view-doc]");
+  if (viewDocButton) {
+    const proofFile = viewDocButton.dataset.viewDoc;
+    openConfirmModal("Document Viewer", "", () => {});
+    ui.confirmMessage.innerHTML = "<p style='margin-bottom:10px;'>Viewing Document: <strong>" + escapeHtml(proofFile) + "</strong></p><div style='padding:40px; border:1px dashed var(--border); border-radius:var(--radius); text-align:center;' class='muted'>Preview not available in prototype mode</div>";
+    ui.confirmAccept.textContent = "Close";
+    ui.confirmAccept.className = "btn ghost";
+    ui.confirmCancel.classList.add("hidden");
+    return;
+  }
+
   if (state.currentRole === "admin" && window.adminUserManagementModule && typeof window.adminUserManagementModule.handleClick === "function") {
     const handledAdminUserClick = window.adminUserManagementModule.handleClick(event, getAdminUserManagementContext());
     if (handledAdminUserClick) {
@@ -2276,6 +2307,37 @@ function handlePageClick(event) {
 
 function handlePageSubmit(event) {
   const form = event.target;
+
+  if (form.id === "add-student-form") {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const isTeacher = state.currentRole === "teacher";
+    const name = String(formData.get("name") || "").trim();
+    const email = isTeacher ? String(formData.get("email") || "").trim() : name.toLowerCase().replace(/\s/g, "") + "@college.edu";
+    const dept = isTeacher ? String(formData.get("department") || "").trim() : "Computer Science";
+    
+    users.push({
+      id: getNextUserId(),
+      name: name,
+      email: email,
+      role: "student",
+      department: dept,
+      class: "BSc CS A",
+      isApproved: true,
+      status: "Active"
+    });
+    showToast("Student added successfully.", "success");
+    form.reset();
+    renderPage();
+    return;
+  }
+
+  if (form.id === "bulk-upload-form") {
+    event.preventDefault();
+    showToast("Simulating Excel upload... records added.", "success");
+    form.reset();
+    return;
+  }
 
   if (state.currentRole === "admin" && window.adminUserManagementModule && typeof window.adminUserManagementModule.handleSubmit === "function") {
     const handledAdminUserSubmit = window.adminUserManagementModule.handleSubmit(event, getAdminUserManagementContext());
@@ -3878,6 +3940,15 @@ function openConfirmModal(title, message, action) {
   pendingConfirmationAction = action;
   ui.confirmTitle.textContent = title;
   ui.confirmMessage.textContent = message;
+  
+  if (ui.confirmAccept) {
+    ui.confirmAccept.textContent = "Confirm";
+    ui.confirmAccept.className = "btn danger";
+  }
+  if (ui.confirmCancel) {
+    ui.confirmCancel.classList.remove("hidden");
+  }
+
   ui.confirmModal.classList.remove("hidden");
   ui.confirmModal.setAttribute("aria-hidden", "false");
 }

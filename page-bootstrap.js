@@ -34,6 +34,10 @@
     hod: {
       dashboard: getAppRoute("roles/hod/hod-dashboard.html"),
       reports: getAppRoute("roles/hod/reports.html")
+    },
+    iqac: {
+      dashboard: getAppRoute("roles/iqac/iqac-dashboard.html"),
+      reports: getAppRoute("roles/hod/reports.html")
     }
   };
 
