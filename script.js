@@ -1,46 +1,46 @@
-﻿const roleConfig = {
+const roleConfig = {
   student: {
     label: "Student",
     heading: "Student Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "â—‰" },
-      { page: "submit", label: "Submit Activity", icon: "âœ¦" },
-      { page: "submissions", label: "My Submissions", icon: "â–¦" }
+      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "submit", label: "Submit Activity", icon: "📝" },
+      { page: "submissions", label: "My Submissions", icon: "📁" }
     ]
   },
   teacher: {
     label: "Class Teacher",
     heading: "Teacher Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "â—‰" },
-      { page: "verification", label: "Verification", icon: "âœ“" }
+      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "verification", label: "Verification", icon: "✅" }
     ]
   },
   evaluator: {
     label: "Evaluator",
     heading: "Evaluation Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "â—‰" },
-      { page: "evaluation", label: "Evaluation", icon: "â—Œ" }
+      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "evaluation", label: "Evaluation", icon: "⚖️" }
     ]
   },
   admin: {
     label: "Admin",
     heading: "Admin Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "D" },
-      { page: "criteria", label: "Criteria Management", icon: "C" },
-      { page: "users", label: "User Management", icon: "U" },
-      { page: "departments", label: "Department Management", icon: "DP" },
-      { page: "settings", label: "Settings", icon: "S" }
+      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "criteria", label: "Criteria Management", icon: "⚙️" },
+      { page: "users", label: "User Management", icon: "👥" },
+      { page: "departments", label: "Department Management", icon: "🏛️" },
+      { page: "settings", label: "Settings", icon: "🔧" }
     ]
   },
   hod: {
     label: "HOD / IQAC",
     heading: "HOD / IQAC Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "â—‰" },
-      { page: "reports", label: "Reports", icon: "â—¨" }
+      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "reports", label: "Reports", icon: "📉" }
     ]
   }
 };
@@ -1738,11 +1738,8 @@ function renderTeacherVerificationSection() {
     "<section class=\"panel hierarchy-panel\">" +
     "<div class=\"panel-head\"><h3>Hierarchy View</h3></div>" +
     "<div class=\"list-toolbar\">" +
-    "<div class=\"field\"><label for=\"teacher-verification-search\">Search</label><input id=\"teacher-verification-search\" type=\"search\" placeholder=\"Search name, category, email\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"teacher-verification\" data-list-filter=\"search\" /></div>" +
+    "<div class=\"field\"><label for=\"teacher-verification-search\">Search</label><input id=\"teacher-verification-search\" type=\"search\" placeholder=\"Search student name...\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"teacher-verification\" data-list-filter=\"search\" /></div>" +
     "<div class=\"field\"><label for=\"teacher-verification-department\">Department</label><select id=\"teacher-verification-department\" data-list-target=\"teacher-verification\" data-list-filter=\"department\">" + renderFilterOptions(departmentOptions, viewState.department, "All Departments") + "</select></div>" +
-    "<div class=\"field\"><label for=\"teacher-verification-class\">Class</label><select id=\"teacher-verification-class\" data-list-target=\"teacher-verification\" data-list-filter=\"className\">" + renderFilterOptions(classOptions, viewState.className, "All Classes") + "</select></div>" +
-    "<div class=\"field\"><label for=\"teacher-verification-student\">Student</label><select id=\"teacher-verification-student\" data-list-target=\"teacher-verification\" data-list-filter=\"studentId\">" + renderFilterOptions(studentOptions, viewState.studentId, "All Students") + "</select></div>" +
-    "<div class=\"field\"><label for=\"teacher-verification-status\">Status</label><select id=\"teacher-verification-status\" data-list-target=\"teacher-verification\" data-list-filter=\"status\">" + renderFilterOptions(statusOptions, viewState.status, "All Statuses") + "</select></div>" +
     "</div>" +
     renderListSummary(pageInfo) +
     (pageInfo.items.length ? "<div class=\"submission-grid\">" + cards + "</div>" : cards) +
@@ -1833,11 +1830,8 @@ function renderEvaluatorEvaluationSection() {
     "<section class=\"panel hierarchy-panel\">" +
     "<div class=\"panel-head\"><h3>Hierarchy View</h3></div>" +
     "<div class=\"list-toolbar\">" +
-    "<div class=\"field\"><label for=\"evaluator-evaluation-search\">Search</label><input id=\"evaluator-evaluation-search\" type=\"search\" placeholder=\"Search name, category, email\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"search\" /></div>" +
+    "<div class=\"field\"><label for=\"evaluator-evaluation-search\">Search</label><input id=\"evaluator-evaluation-search\" type=\"search\" placeholder=\"Search student name...\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"search\" /></div>" +
     "<div class=\"field\"><label for=\"evaluator-evaluation-department\">Department</label><select id=\"evaluator-evaluation-department\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"department\">" + renderFilterOptions(departmentOptions, viewState.department, "All Departments") + "</select></div>" +
-    "<div class=\"field\"><label for=\"evaluator-evaluation-class\">Class</label><select id=\"evaluator-evaluation-class\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"className\">" + renderFilterOptions(classOptions, viewState.className, "All Classes") + "</select></div>" +
-    "<div class=\"field\"><label for=\"evaluator-evaluation-student\">Student</label><select id=\"evaluator-evaluation-student\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"studentId\">" + renderFilterOptions(studentOptions, viewState.studentId, "All Students") + "</select></div>" +
-    "<div class=\"field\"><label for=\"evaluator-evaluation-status\">Status</label><select id=\"evaluator-evaluation-status\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"status\">" + renderFilterOptions(statusOptions, viewState.status, "All Statuses") + "</select></div>" +
     "</div>" +
     renderListSummary({
       totalItems: pendingPageInfo.totalItems + completedPageInfo.totalItems,
