@@ -1,39 +1,228 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Best Class Evaluation & Verification System</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Best Class Evaluation System</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .login-container {
+      background: var(--surface);
+      width: 100%;
+      max-width: 400px;
+      padding: 40px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      text-align: center;
+      animation: fadeUp 0.4s ease-out;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .login-container h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .login-container p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .form-group select {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background-color: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      cursor: pointer;
+    }
+
+    .form-group select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background-color: var(--primary);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .alert {
+      display: none;
+      padding: 12px;
+      background-color: #fee2e2;
+      color: #991b1b;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      text-align: left;
+      border: 1px solid #fecaca;
+    }
+
+    .alert.show {
+      display: block;
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+  </style>
 </head>
 <body>
-  <div id="login-screen" class="login-screen">
-    <div class="login-card">
-      <p class="eyebrow">Marian College</p>
-      <h1>Best Class Evaluation System</h1>
-      <p class="muted">Select your role to continue into the evaluation workspace.</p>
 
-      <form id="login-form" class="stack-form">
-        <div class="field">
-          <label for="login-role">Choose Role</label>
-          <select id="login-role" name="role">
-            <option value="student">Student</option>
-            <option value="leader">Class Leader</option>
-            <option value="teacher">Class Teacher</option>
-            <option value="evaluator">Evaluator</option>
-            <option value="admin">Admin</option>
-            <option value="hod">HOD / IQAC</option>
-          </select>
-        </div>
+  <div class="login-container">
+    <h1>Best Class Evaluation System</h1>
+    <p>Marian College Kuttikkanam (Autonomous)</p>
 
-        <button type="submit" class="btn primary full">Enter Workspace</button>
-      </form>
+    <div id="error-alert" class="alert">
+      Please select a role to continue.
     </div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="role-select">Select Role</label>
+        <select id="role-select" required>
+          <option value="" disabled selected>Choose your role...</option>
+          <option value="student">Student</option>
+          <option value="teacher">Teacher</option>
+          <option value="evaluator">Evaluator</option>
+          <option value="admin">Admin</option>
+          <option value="hod">HOD</option>
+          <option value="iqac">IQAC</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn">Login</button>
+    </form>
   </div>
 
-  <script src="data.js"></script>
-  <script src="page-bootstrap.js"></script>
-  <script src="index.js"></script>
-  <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginForm = document.getElementById('login-form');
+      const roleSelect = document.getElementById('role-select');
+      const errorAlert = document.getElementById('error-alert');
+
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const role = roleSelect.value;
+        
+        if (!role) {
+          errorAlert.classList.add('show');
+          return;
+        }
+
+        errorAlert.classList.remove('show');
+        
+        // Store role in localStorage
+        localStorage.setItem("role", role);
+
+        // Define routes to the actual role-specific HTML entry points
+        const routes = {
+          student: "roles/student/student-dashboard.html",
+          teacher: "roles/teacher/teacher-dashboard.html",
+          evaluator: "roles/evaluator/evaluation-dashboard.html",
+          admin: "roles/admin/admin-dashboard.html",
+          hod: "roles/hod/hod-dashboard.html",
+          iqac: "roles/hod/iqac-dashboard.html"
+        };
+        
+        // Redirect to the appropriate dashboard
+        if (routes[role]) {
+          window.location.href = routes[role];
+        }
+      });
+      
+      roleSelect.addEventListener('change', () => {
+        if (roleSelect.value) {
+          errorAlert.classList.remove('show');
+        }
+      });
+    });
+  </script>
 </body>
 </html>
