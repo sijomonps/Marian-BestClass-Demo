@@ -832,6 +832,40 @@ p {
   border: 1px solid var(--color-border);
 }
 
+.list-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.hierarchy-panel {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.list-summary {
+  margin-bottom: var(--space-2);
+}
+
+.pagination-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+.pagination-btn {
+  min-width: 44px;
+}
+
+.pagination-btn.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -1140,6 +1174,17 @@ tbody tr:hover {
 
 .chart-panel .muted {
   font-size: 0.86rem;
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  width: 100%;
+  min-height: 260px;
+}
+
+.chart-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .insight-chip {
