@@ -1613,10 +1613,17 @@ function renderStudentSubmissionsSection() {
   const rows = pageInfo.items.length
     ? pageInfo.items
         .map((record) => {
-          const editAction = record.canEditByStudent
-            ? "<div class=\"button-row\" style=\"display:flex;gap:4px;\"><button type=\"button\" class=\"btn ghost\" data-student-edit-submission=\"" + record.id + "\">Edit</button>" +
-              "<button type=\"button\" class=\"btn danger\" data-student-delete-submission=\"" + record.id + "\">Delete</button></div>"
-            : "<span class=\"muted\">Locked</span>";
+          let editAction;
+          const isDeletable = !isSubmissionScored(record.status);
+          
+          if (record.canEditByStudent) {
+            editAction = "<div class=\"button-row\" style=\"display:flex;gap:4px;\"><button type=\"button\" class=\"btn ghost\" data-student-edit-submission=\"" + record.id + "\">Edit</button>" +
+              "<button type=\"button\" class=\"btn danger\" data-student-delete-submission=\"" + record.id + "\">Delete</button></div>";
+          } else if (isDeletable) {
+            editAction = "<div class=\"button-row\"><button type=\"button\" class=\"btn danger\" data-student-delete-submission=\"" + record.id + "\">Delete</button></div>";
+          } else {
+            editAction = "<span class=\"muted\">Locked</span>";
+          }
 
           return (
             "<tr>" +
