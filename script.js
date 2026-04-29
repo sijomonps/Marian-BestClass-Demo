@@ -1686,8 +1686,7 @@ function renderStudentManagementPage() {
 
   const extraTeacherFields = isTeacher ? 
       ("<div class=\"field\"><label>Email</label><input type=\"email\" name=\"email\" required placeholder=\"student@college.edu\"></div>" +
-       "<div class=\"field\"><label>Password</label><input type=\"password\" name=\"password\" required placeholder=\"Password\"></div>" +
-       "<div class=\"field\"><label>Department</label><input type=\"text\" name=\"department\" required placeholder=\"Computer Science\"></div>") : "";
+       "<div class=\"field\"><label>Password</label><input type=\"password\" name=\"password\" required placeholder=\"Password\"></div>") : "";
 
   return (
     "<section class=\"section-header\">" +
@@ -2307,7 +2306,8 @@ function handlePageSubmit(event) {
     const isTeacher = state.currentRole === "teacher";
     const name = String(formData.get("name") || "").trim();
     const email = isTeacher ? String(formData.get("email") || "").trim() : name.toLowerCase().replace(/\s/g, "") + "@college.edu";
-    const dept = isTeacher ? String(formData.get("department") || "").trim() : "Computer Science";
+    const deptRaw = String(formData.get("department") || "").trim();
+    const dept = isTeacher ? (deptRaw || "Computer Science") : "Computer Science";
     
     users.push({
       id: getNextUserId(),
