@@ -1718,18 +1718,48 @@ function renderStudentManagementPage() {
   );
 }
 function renderTeacherDashboard() {
-  const metrics = buildSummaryMetrics(submissions);
+  const teacherClass = "BSc CS A";
+  // Filter students for the dashboard view
+  const classStudents = users.filter(u => u.role === "student" && u.class === teacherClass);
+
+  const metrics = buildSummaryMetrics(submissions.filter(s => classStudents.some(stu => stu.id === s.studentId)));
+
+  // Simple student list summary for the dashboard
+  const studentRows = classStudents.slice(0, 5).map(student => {
+    const stuSub = submissions.filter(s => s.studentId === student.id);
+    const verified = stuSub.filter(s => s.status === workflowStatus.VERIFIED || s.status === workflowStatus.EVALUATED || s.status === workflowStatus.LOCKED).length;
+    const progress = stuSub.length > 0 ? Math.round((verified / stuSub.length) * 100) : 0;
+    
+    // Use the statusLabel updated by verification
+    const status = student.statusLabel || "Pending";
+    let statusColor = "var(--color-warning)";
+    if (status === "Completed") statusColor = "var(--color-success)";
+    if (status === "Needs Correction") statusColor = "var(--color-danger)";
+
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--color-border);">
+        <div style="display:flex; flex-direction:column;">
+          <span>${escapeHtml(student.name)}</span>
+          <small style="color:${statusColor}; font-weight:bold;">${status}</small>
+        </div>
+        <div style="width:120px; display:flex; align-items:center; gap:10px;">
+          <div class="progress-track" style="flex:1; height:6px;"><div class="progress-fill" style="width:${progress}%"></div></div>
+          <small>${progress}%</small>
+        </div>
+      </div>
+    `;
+  }).join("");
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Teacher Dashboard</h1><p class=\"muted\">Monitor queue and move submissions through verification.</p></div>" +
+    "<div><h1>Teacher Dashboard</h1><p class=\"muted\">Class Performance: " + teacherClass + "</p></div>" +
     "</section>" +
     renderDashboardCards(metrics) +
-    renderStatusProgress("Verification Queue", metrics) +
-    renderRecentActivityPanel(submissions, "Latest Verification Items", 5) +
     "<section class=\"panel\">" +
+    "<h3>Recent Student Progress</h3>" +
+    "<div style='margin:15px 0;'>" + studentRows + "</div>" +
     "<div class=\"button-row\">" +
-    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"verification\">✔ Open Verification Desk</button>" +
+    "<button type=\"button\" class=\"btn primary\" data-page-jump=\"verification\">✔ Open Class Verification Desk</button>" +
     "</div>" +
     "</section>"
   );
@@ -1796,12 +1826,159 @@ function buildTeacherTable(records) {
 }
 
 function renderTeacherVerificationPage() {
-  return (
-    "<section class=\"section-header\">" +
-    "<div><h1>Verification</h1></div>" +
-    "</section>" +
-    "<div id=\"teacher-verification-root\">" + renderTeacherVerificationSection() + "</div>"
-  );
+  const teacherClass = "BSc CS A"; // Demo class
+  
+  // Set up filters if they don't exist
+  if (!state.listViews.teacherVerification) {
+    state.listViews.teacherVerification = { search: "", status: "all" };
+  }
+  const viewState = state.listViews.teacherVerification;
+
+  // 1. Find all students in this class
+  const classStudents = users.filter(u => u.role === "student" && u.class === teacherClass);
+
+  // 2. Map students to their verification data
+  const studentItems = classStudents.map(student => {
+    const studentSubmissions = submissions.filter(s => s.studentId === student.id);
+    
+    // Logic for progress metrics
+    const total = studentSubmissions.length;
+    const verifiedCount = studentSubmissions.filter(s => s.status === workflowStatus.VERIFIED || s.status === workflowStatus.EVALUATED || s.status === workflowStatus.LOCKED).length;
+    const correctionCount = studentSubmissions.filter(s => s.status === workflowStatus.CORRECTION || s.status === workflowStatus.REJECTED).length;
+
+    // Progress = ratio of verified items compared to actual submissions
+    const progress = total > 0 ? Math.round((verifiedCount / total) * 100) : 0;
+
+    // Status logic:
+    // - All verified -> Completed
+    // - Any rejected/correction -> Needs Correction
+    // - Else -> Pending
+    
+    // Sync with student.statusLabel if it exists, otherwise use local logic
+    let status = student.statusLabel || "Pending";
+    let statusClass = "status-pending";
+    if (status === "Completed") {
+      statusClass = "status-approved";
+    } else if (status === "Needs Correction") {
+      statusClass = "status-correction";
+    }
+
+    return { 
+      student, 
+      progress, 
+      status, 
+      statusClass, 
+      total, 
+      verifiedCount, 
+      submissions: studentSubmissions 
+    };
+  });
+
+  // 3. Filter the list
+  const filtered = studentItems.filter(item => {
+    const matchesSearch = item.student.name.toLowerCase().includes(viewState.search.toLowerCase());
+    const matchesStatus = viewState.status === "all" || item.status.toLowerCase().replace(" ", "") === viewState.status;
+    return matchesSearch && matchesStatus;
+  });
+
+  // 4. Build Student Cards
+  const cardsHtml = filtered.map(item => {
+    const isExpanded = state.expandedStudentId === item.student.id;
+    
+    let expandHtml = "";
+    if (isExpanded) {
+      const subListHtml = item.submissions.length > 0 
+        ? item.submissions.map(sub => {
+            const record = createSubmissionViewRecord(sub);
+            const controls = record.canTeacherAct 
+              ? `<div class="field" style="margin-top:10px;">
+                  <label style="font-size:0.8rem; font-weight:600; color:var(--color-danger);">Specify Correction/Reason (Required for Correction/Reject)</label>
+                  <input type="text" data-remark-input="${sub.id}" value="${escapeAttribute(sub.remarks || "")}" placeholder="e.g., Please re-upload a clearer image of the certificate..." />
+                </div>
+                <div class="button-row" style="margin-top:10px; display:flex; gap:5px;">
+                  <button type="button" class="btn success mini" data-teacher-action="${workflowStatus.VERIFIED}" data-id="${sub.id}">Approve</button>
+                  <button type="button" class="btn warn mini" data-teacher-action="${workflowStatus.CORRECTION}" data-id="${sub.id}">Request Correction</button>
+                  <button type="button" class="btn danger mini" data-teacher-action="${workflowStatus.REJECTED}" data-id="${sub.id}">Reject</button>
+                </div>`
+              : `<p class="muted" style="font-size:0.85rem; margin-top:10px;">Current Remarks: ${escapeHtml(sub.remarks || "No remarks")}</p>`;
+
+            return `
+              <div class="verification-item">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                  <h4 style="font-size:0.92rem; margin-bottom:4px;">${escapeHtml(record.itemTitle)}</h4>
+                  <span class="status-pill mini ${getStatusClass(sub.status)}">${sub.status}</span>
+                </div>
+                <p class="muted" style="font-size:0.85rem; margin-bottom:10px;">Category: ${escapeHtml(record.category)}</p>
+                <button type="button" class="btn ghost mini full" data-view-doc="${escapeAttribute(sub.proofFile)}">📄 View Proof</button>
+                ${controls}
+              </div>
+            `;
+          }).join("")
+        : "<p class='empty-state'>No documents submitted yet.</p>";
+
+      expandHtml = `<div class="student-expand-content">${subListHtml}</div>`;
+    }
+
+    return `
+      <article class="panel student-card">
+        <div class="student-card-header">
+          <div class="student-card-info">
+            <span class="student-name">${escapeHtml(item.student.name)}</span>
+            <p class="muted" style="font-size:0.8rem;">${escapeHtml(item.student.email)}</p>
+          </div>
+          <span class="status-pill ${item.statusClass}">${item.status}</span>
+        </div>
+
+        <div class="student-progress">
+          <div class="progress-info">
+            <span>Criteria Progress</span>
+            <span>${item.progress}%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: ${item.progress}%"></div>
+          </div>
+          <p class="muted" style="font-size:0.75rem; margin-top:5px;">${item.verifiedCount} of ${item.total} items verified</p>
+        </div>
+
+        <button type="button" class="btn ${isExpanded ? 'primary' : 'ghost'} full" data-expand-student="${item.student.id}">
+          ${isExpanded ? 'Hide Submissions' : 'Review Submissions'}
+        </button>
+        ${expandHtml}
+      </article>
+    `;
+  }).join("");
+
+  return `
+    <section class="section-header">
+      <div>
+        <h1>Verification Desk</h1>
+        <p class="muted">Manage and verify submissions per student for ${teacherClass}</p>
+      </div>
+    </section>
+
+    <section class="panel tool-bar">
+      <div class="field search-box">
+        <label>Search Students</label>
+        <div style="position:relative;">
+          <input type="text" placeholder="Search name..." value="${escapeAttribute(viewState.search)}" 
+                 data-list-target="teacher-verification" data-list-filter="search" />
+        </div>
+      </div>
+      <div class="field filter-box">
+        <label>Filter Status</label>
+        <select data-list-target="teacher-verification" data-list-filter="status">
+          <option value="all" ${viewState.status === 'all' ? 'selected' : ''}>All</option>
+          <option value="pending" ${viewState.status === 'pending' ? 'selected' : ''}>Pending</option>
+          <option value="needscorrection" ${viewState.status === 'needscorrection' ? 'selected' : ''}>Needs Correction</option>
+          <option value="completed" ${viewState.status === 'completed' ? 'selected' : ''}>Completed</option>
+        </select>
+      </div>
+    </section>
+
+    <div class="student-grid">
+      ${cardsHtml || '<div class="panel empty-state">No matching students found.</div>'}
+    </div>
+  `;
 }
 function renderEvaluatorDashboard() {
   const verifiedQueue = submissions.filter((item) => isSubmissionVerified(item.status));
@@ -2180,6 +2357,16 @@ function handlePageClick(event) {
     renderPage();
     return;
   }
+
+  // Handle Teacher Student Expansion
+  const expandStudentBtn = event.target.closest("button[data-expand-student]");
+  if (expandStudentBtn) {
+    const studentId = Number(expandStudentBtn.dataset.expandStudent);
+    // Simple toggle logic
+    state.expandedStudentId = state.expandedStudentId === studentId ? null : studentId;
+    renderPage();
+    return;
+  }
   
   const viewDocButton = event.target.closest("button[data-view-doc]");
   if (viewDocButton) {
@@ -2265,10 +2452,21 @@ function handlePageClick(event) {
     const submissionId = Number(teacherActionButton.dataset.id);
     const nextStatus = teacherActionButton.dataset.teacherAction;
 
+    // Capture remarks from input
+    const remarkInput = ui.pageContent.querySelector(`[data-remark-input='${submissionId}']`);
+    const remarksValue = remarkInput ? remarkInput.value.trim() : "";
+
     openConfirmModal(
       "Confirm Action",
-      "Mark submission #" + submissionId + " as " + nextStatus + "?",
-      () => updateTeacherStatus(submissionId, nextStatus)
+      "Update status to " + nextStatus + (remarksValue ? " with remarks?" : "?"),
+      () => {
+        // Find existing submission and update its remarks
+        const submission = submissions.find(s => s.id === submissionId);
+        if (submission) {
+          submission.remarks = remarksValue; 
+        }
+        updateTeacherStatus(submissionId, nextStatus);
+      }
     );
     return;
   }
@@ -2497,14 +2695,7 @@ function updateListFilterState(target, filterKey, rawValue) {
   if (safeTarget === "teacher-verification") {
     const viewState = state.listViews.teacherVerification;
     viewState[safeFilterKey] = nextValue;
-    if (safeFilterKey === "department") {
-      viewState.className = allFilterValue;
-      viewState.studentId = allFilterValue;
-    } else if (safeFilterKey === "className") {
-      viewState.studentId = allFilterValue;
-    }
-    viewState.currentPage = 1;
-    refreshTeacherVerificationSection();
+    renderPage();
     return;
   }
 
@@ -2724,6 +2915,13 @@ function updateTeacherStatus(submissionId, nextStatus) {
   const remarkInput = ui.pageContent.querySelector("[data-remark-input='" + submissionId + "']");
   const remarkValue = remarkInput ? remarkInput.value.trim() : "";
 
+  // Validation: If it's a correction or rejection, remarks are mandatory
+  if ((nextStatus === workflowStatus.CORRECTION || nextStatus === workflowStatus.REJECTED) && !remarkValue) {
+    showToast("Please specify the reason/remarks for " + nextStatus + ".", "warning");
+    if (remarkInput) remarkInput.focus();
+    return;
+  }
+
   if (!isTeacherActionAllowed(submission.status)) {
     showToast("Teacher can update only Submitted items.", "warning");
     return;
@@ -2771,7 +2969,35 @@ function updateTeacherStatus(submissionId, nextStatus) {
   }
 
   showToast("Submission " + submissionId + " marked as " + nextStatus + ".", "success");
+  
+  // Update the student's overall status based on their submissions
+  updateStudentStatus(submission.studentId);
+  
   renderPage();
+}
+
+function updateStudentStatus(studentId) {
+  const student = users.find(u => u.id === studentId);
+  if (!student) return;
+
+  const studentSubmissions = submissions.filter(s => s.studentId === studentId);
+  
+  // Defined criteria: If student has verified/evaluated/locked all their submissions
+  const allVerified = studentSubmissions.length > 0 && studentSubmissions.every(s => 
+    [workflowStatus.VERIFIED, workflowStatus.EVALUATED, workflowStatus.LOCKED].includes(s.status)
+  );
+
+  const anyRejected = studentSubmissions.some(s => 
+    s.status === workflowStatus.REJECTED || s.status === workflowStatus.CORRECTION
+  );
+
+  if (allVerified) {
+    student.statusLabel = "Completed";
+  } else if (anyRejected) {
+    student.statusLabel = "Needs Correction";
+  } else {
+    student.statusLabel = "Pending";
+  }
 }
 
 function verifyAndSaveEvaluatorSubmission(submissionId) {
