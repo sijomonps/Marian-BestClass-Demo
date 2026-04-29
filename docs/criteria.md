@@ -12,7 +12,7 @@
 - Programs
 - Social Responsibility
 - Career Advancement
-- Documentation
+- Documentation.
 
 ## Types
 - Fixed marks
