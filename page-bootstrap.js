@@ -31,10 +31,6 @@
       departments: getAppRoute("roles/admin/department-management.html"),
       settings: getAppRoute("roles/admin/settings.html")
     },
-    hod: {
-      dashboard: getAppRoute("roles/hod/hod-dashboard.html"),
-      reports: getAppRoute("roles/hod/reports.html")
-    },
     iqac: {
       dashboard: getAppRoute("roles/iqac/iqac-dashboard.html"),
       reports: getAppRoute("roles/hod/reports.html")
