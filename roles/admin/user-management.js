@@ -1,4 +1,4 @@
-﻿window.applyPageConfig({
+window.applyPageConfig({
   autoRole: "admin",
   autoPage: "users"
 });
@@ -779,8 +779,8 @@
     if (normalized === "evaluator" || normalized === "evaluation team") {
       return "evaluator";
     }
-    if (normalized === "hod" || normalized === "hod / iqac" || normalized === "iqac") {
-      return "hod";
+    if (normalized === "hod" || normalized === "hod / iqac" || normalized === "iqac" || normalized === "iqac/hod") {
+      return "iqac";
     }
     if (normalized === "admin") {
       return "admin";

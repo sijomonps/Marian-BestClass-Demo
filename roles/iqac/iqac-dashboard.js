@@ -1,4 +1,4 @@
 window.applyPageConfig({
-  autoRole: "hod",
+  autoRole: "iqac",
   autoPage: "dashboard"
 });

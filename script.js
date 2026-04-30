@@ -36,9 +36,9 @@ const roleConfig = {
       { page: "settings", label: "Settings", icon: "🔧" }
     ]
   },
-  hod: {
-    label: "HOD / IQAC",
-    heading: "HOD / IQAC Workspace",
+  iqac: {
+    label: "IQAC/HOD",
+    heading: "IQAC/HOD Workspace",
     menu: [
       { page: "dashboard", label: "Dashboard", icon: "📊" },
       { page: "reports", label: "Reports", icon: "📉" }
@@ -50,7 +50,7 @@ const adminManagedRoleOptions = [
   { value: "student", label: "Student" },
   { value: "teacher", label: "Class Teacher" },
   { value: "evaluator", label: "Evaluation Team" },
-  { value: "hod", label: "HOD / IQAC" },
+  { value: "iqac", label: "IQAC/HOD" },
   { value: "admin", label: "Admin" }
 ];
 
@@ -960,7 +960,7 @@ function renderPage() {
       content = renderAdminAcademicYearPage();
     }
   } else {
-    content = state.activePage === "reports" ? renderHodReportsPage() : renderHodDashboard();
+    content = state.activePage === "reports" ? renderIqacReportsPage() : renderIqacDashboard();
   }
 
   ui.pageContent.innerHTML = "<div class=\"page-stack\">" + content + "</div>";
@@ -2206,7 +2206,7 @@ function renderAdminSettingsPage() {
   );
 }
 
-function renderHodDashboard() {
+function renderIqacDashboard() {
   const performance = buildClassPerformance();
   const metrics = {
     total: submissions.length,
@@ -2219,14 +2219,14 @@ function renderHodDashboard() {
   };
 
   return (
-    "<section class=\"section-header\"><div><h1>HOD / IQAC Dashboard</h1><p class=\"muted\">Institution-level performance overview.</p></div></section>" +
+    "<section class=\"section-header\"><div><h1>IQAC/HOD Dashboard</h1><p class=\"muted\">Department-level overall class performance overview.</p></div></section>" +
     renderDashboardCards(metrics) +
-    renderCategoryBreakdown(submissions, "Institution Score by Category") +
-    renderStatusProgress("Institution Submission Health", metrics)
+    renderCategoryBreakdown(submissions, "Department Score by Category") +
+    renderStatusProgress("Department Submission Health", metrics)
   );
 }
 
-function renderHodReportsPage() {
+function renderIqacReportsPage() {
   const ranked = buildClassPerformance().sort((a, b) => {
     if (b.totalScore === a.totalScore) {
       return b.normalizedScore - a.normalizedScore;
@@ -2239,7 +2239,7 @@ function renderHodReportsPage() {
   const leaderboardRows = ranked
     .map((entry, index) => {
       const topClass = index === 0 ? "top-1" : index === 1 ? "top-2" : index === 2 ? "top-3" : "";
-      const medal = index === 0 ? "ðŸ¥‡" : index === 1 ? "ðŸ¥ˆ" : index === 2 ? "ðŸ¥‰" : "#" + (index + 1);
+      const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "#" + (index + 1);
       const width = (entry.totalScore / maxScore) * 100;
       return (
         "<article class=\"leaderboard-row " + topClass + "\">" +
@@ -2263,15 +2263,16 @@ function renderHodReportsPage() {
         "<td>" + entry.normalizedScore.toFixed(1) + "</td>" +
         "<td>" + entry.percentile.toFixed(1) + "</td>" +
         "<td><span class=\"grade-badge " + getGradeClass(entry.grade) + "\">" + entry.grade + "</span></td>" +
+        "<td><button class=\"btn ghost\" onclick=\"alert('Feedback provided for " + escapeHtml(entry.className) + "')\">Provide Feedback</button></td>" +
         "</tr>"
       );
     })
     .join("");
 
   return (
-    "<section class=\"section-header\"><div><h1>Reports</h1><p class=\"muted\">Leaderboard and class-wise academic performance.</p></div></section>" +
+    "<section class=\"section-header\"><div><h1>Reports & Feedback</h1><p class=\"muted\">Leaderboard, monitor class-wise progress, and provide feedback.</p></div></section>" +
     "<section class=\"panel\"><h3>Class Leaderboard</h3><div class=\"leaderboard\">" + leaderboardRows + "</div></section>" +
-    "<section class=\"panel\"><h3>Performance Table</h3><div class=\"table-wrap\"><table><thead><tr><th>Class</th><th>Total Score</th><th>Normalized</th><th>Percentile</th><th>Grade</th></tr></thead><tbody>" + tableRows + "</tbody></table></div></section>"
+    "<section class=\"panel\"><h3>Class-wise Progress & Feedback</h3><div class=\"table-wrap\"><table><thead><tr><th>Class</th><th>Total Score</th><th>Normalized</th><th>Percentile</th><th>Grade</th><th>Action</th></tr></thead><tbody>" + tableRows + "</tbody></table></div></section>"
   );
 }
 
@@ -3959,7 +3960,7 @@ function createInitialUsers() {
       id: 1003,
       name: "Latha Nair",
       email: "latha.nair@college.edu",
-      role: "hod",
+      role: "iqac",
       department: "IQAC",
       class: "",
       isApproved: true,
@@ -4000,8 +4001,8 @@ function normalizeUserRole(role) {
   if (normalized === "evaluator" || normalized === "evaluation team") {
     return "evaluator";
   }
-  if (normalized === "hod" || normalized === "iqac" || normalized === "hod / iqac") {
-    return "hod";
+  if (normalized === "iqac" || normalized === "iqac/hod" || normalized === "hod" || normalized === "hod / iqac") {
+    return "iqac";
   }
   if (normalized === "admin") {
     return "admin";
