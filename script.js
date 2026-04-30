@@ -1836,67 +1836,178 @@ function renderEvaluatorDashboard() {
 }
 
 function renderEvaluatorEvaluationSection() {
-  state.evaluatorTab = state.evaluatorTab || "evaluation";
+  if (state.evaluatorTab === "evaluation" || state.evaluatorTab === "results") {
+    state.evaluatorTab = "pending";
+  }
+  state.evaluatorTab = state.evaluatorTab || "pending";
+  state.evaluatorExpanded = state.evaluatorExpanded || {};
+  const viewState = state.listViews.evaluatorEvaluation || createDefaultEvaluatorListViewState();
+  const searchFilter = normalizeFilterText(viewState.search || "");
 
-  let tabContent = "";
-  if (state.evaluatorTab === "evaluation") {
-      const records = submissions
-        .filter(item => isSubmissionVerified(item.status) || isSubmissionLocked(item.status))
-        .sort((a, b) => b.id - a.id)
-        .map(item => createSubmissionViewRecord(item));
+  const searchHtml = (
+    "<div class=\"eval-top-bar\">" +
+      "<div class=\"button-row\">" +
+        "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "pending" ? "primary" : "ghost") + "\" data-evaluator-tab=\"pending\">Pending</button>" +
+        "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "completed" ? "primary" : "ghost") + "\" data-evaluator-tab=\"completed\">Completed</button>" +
+      "</div>" +
+      "<div class=\"eval-search\">" +
+        "<input type=\"text\" class=\"field\" placeholder=\"Search student...\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"search\" value=\"" + escapeAttribute(viewState.search || "") + "\" />" +
+      "</div>" +
+    "</div>"
+  );
 
-      const cards = records.map(record => {
-          const currentMarks = record.finalMarks !== null ? record.finalMarks : record.previewMarks;
-          const marksHtml = record.canEvaluate
-          ? "<div class=\"field eval-manual-field\"><label>Manual Marks</label><input data-evaluator-manual=\"" + record.id + "\" type=\"number\" step=\"0.5\" value=\"" + (Number.isFinite(record.submission.marks) ? record.submission.marks : "") + "\" placeholder=\"Auto: " + record.previewMarks + "\" /></div>" +
-            "<div class=\"button-row\"><button type=\"button\" class=\"btn primary full\" data-evaluator-verify-save=\"" + record.id + "\">Verify & Save</button></div>"
-          : "<div class=\"meta-list\" style=\"margin-bottom:8px;\"><p><strong>Locked Marks:</strong> " + currentMarks + "</p></div>" +
-            "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost full\" data-evaluator-edit-marks=\"" + record.id + "\">Edit Marks</button></div>";
+  const grouped = {};
+  submissions.forEach(sub => {
+    if (sub.status !== workflowStatus.VERIFIED && sub.status !== workflowStatus.LOCKED && sub.status !== workflowStatus.EVALUATED) return;
+    
+    const record = createSubmissionViewRecord(sub);
+    const dept = record.department || "General";
+    const cls = record.className || "General";
+    const stuId = record.studentId;
+    
+    if (!grouped[dept]) grouped[dept] = { name: dept, classes: {}, total: 0, completed: 0, show: false };
+    if (!grouped[dept].classes[cls]) grouped[dept].classes[cls] = { name: cls, students: {}, total: 0, completed: 0, show: false };
+    if (!grouped[dept].classes[cls].students[stuId]) grouped[dept].classes[cls].students[stuId] = { id: stuId, name: record.studentName, submissions: [], total: 0, completed: 0, show: false };
+    
+    grouped[dept].classes[cls].students[stuId].submissions.push(record);
+    
+    const isComp = (record.status === workflowStatus.LOCKED || record.status === workflowStatus.EVALUATED) ? 1 : 0;
+    
+    grouped[dept].total++;
+    grouped[dept].completed += isComp;
+    grouped[dept].classes[cls].total++;
+    grouped[dept].classes[cls].completed += isComp;
+    grouped[dept].classes[cls].students[stuId].total++;
+    grouped[dept].classes[cls].students[stuId].completed += isComp;
 
-        return (
-          "<article class=\"submission-card\">" +
-          "<div class=\"submission-head\"><h4>" + escapeHtml(record.studentName) + "</h4><span class=\"status-pill " + getStatusClass(record.status) + "\">" + escapeHtml(record.status) + "</span></div>" +
-          "<div class=\"meta-list\">" +
-          "<p><strong>Category:</strong> " + escapeHtml(record.category) + "</p>" +
-          "<p><strong>Rule Marks:</strong> " + safeMark(record.previewMarks).toFixed(1) + "</p>" +
-          "</div>" +
-          "<div class=\"button-row\" style=\"margin-top:12px;margin-bottom:12px;\"><button type=\"button\" class=\"btn ghost full\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">📄 View Document</button></div>" +
-          marksHtml +
-          "</article>"
+    let matchesTab = false;
+    if (state.evaluatorTab === "pending" && !isComp) matchesTab = true;
+    if (state.evaluatorTab === "completed" && isComp) matchesTab = true;
+    
+    let matchesSearch = true;
+    if (searchFilter && record.studentName.toLowerCase().indexOf(searchFilter) === -1) matchesSearch = false;
+    
+    if (matchesTab && matchesSearch) {
+      grouped[dept].show = true;
+      grouped[dept].classes[cls].show = true;
+      grouped[dept].classes[cls].students[stuId].show = true;
+      record.show = true;
+    } else {
+      record.show = false;
+    }
+  });
+
+  let listHtml = "";
+  
+  Object.values(grouped).sort((a,b) => a.name.localeCompare(b.name)).forEach(dept => {
+    if (!dept.show) return;
+    
+    const deptKey = "dept_" + dept.name;
+    const deptExpanded = !!state.evaluatorExpanded[deptKey];
+    const deptProgress = dept.total > 0 ? (dept.completed / dept.total) * 100 : 0;
+    
+    listHtml += (
+      "<div class=\"hier-row hier-dept\">" +
+        "<div class=\"hier-header\" data-eval-expand=\"" + escapeAttribute(deptKey) + "\">" +
+          "<div class=\"hier-title\"><span>" + (deptExpanded ? "▼" : "▶") + "</span> <strong>" + escapeHtml(dept.name) + "</strong></div>" +
+          "<div class=\"hier-progress\"><div class=\"hier-progress-text\">" + dept.completed + " / " + dept.total + " Verified</div><div class=\"hier-progress-bar\"><div style=\"width: " + deptProgress + "%\"></div></div></div>" +
+        "</div>"
+    );
+    
+    if (deptExpanded) {
+      listHtml += "<div class=\"hier-children\">";
+      Object.values(dept.classes).sort((a,b) => a.name.localeCompare(b.name)).forEach(cls => {
+        if (!cls.show) return;
+        
+        const clsKey = "cls_" + dept.name + "_" + cls.name;
+        const clsExpanded = !!state.evaluatorExpanded[clsKey];
+        const clsProgress = cls.total > 0 ? (cls.completed / cls.total) * 100 : 0;
+        
+        listHtml += (
+          "<div class=\"hier-row hier-cls\">" +
+            "<div class=\"hier-header\" data-eval-expand=\"" + escapeAttribute(clsKey) + "\">" +
+              "<div class=\"hier-title\"><span>" + (clsExpanded ? "▼" : "▶") + "</span> <strong>" + escapeHtml(cls.name) + "</strong></div>" +
+              "<div class=\"hier-progress\"><div class=\"hier-progress-text\">" + cls.completed + " / " + cls.total + " Verified</div><div class=\"hier-progress-bar\"><div style=\"width: " + clsProgress + "%\"></div></div></div>" +
+            "</div>"
         );
-      }).join("");
-      tabContent = cards ? "<div class='submission-grid'>" + cards + "</div>" : "<p class='empty-state'>No verified submissions to evaluate.</p>";
-  } else if (state.evaluatorTab === "results") {
-      const classScores = {};
-      submissions.filter(s => s.status === workflowStatus.LOCKED || s.status === workflowStatus.EVALUATED).forEach(s => {
-         const user = findUserById(s.studentId);
-         if (user && user.class) {
-             if (!classScores[user.class]) classScores[user.class] = 0;
-             classScores[user.class] += getSubmissionEffectiveMarks(s);
-         }
+        
+        if (clsExpanded) {
+          listHtml += "<div class=\"hier-children\">";
+          Object.values(cls.students).sort((a,b) => a.name.localeCompare(b.name)).forEach(stu => {
+            if (!stu.show) return;
+            
+            const stuKey = "stu_" + dept.name + "_" + cls.name + "_" + stu.id;
+            const stuExpanded = !!state.evaluatorExpanded[stuKey];
+            const badgeText = state.evaluatorTab === "completed" ? "completed" : "pending";
+            
+            listHtml += (
+              "<div class=\"hier-row hier-stu\">" +
+                "<div class=\"hier-header\" data-eval-expand=\"" + escapeAttribute(stuKey) + "\">" +
+                  "<div class=\"hier-title\"><span>" + (stuExpanded ? "▼" : "▶") + "</span> " + escapeHtml(stu.name) + "</div>" +
+                  "<div class=\"hier-badge\">" + stu.submissions.filter(r => r.show).length + " " + badgeText + "</div>" +
+                "</div>"
+            );
+            
+            if (stuExpanded) {
+              listHtml += "<div class=\"hier-children\">";
+              stu.submissions.forEach(record => {
+                if (!record.show) return;
+                
+                const currentMarks = record.finalMarks !== null ? record.finalMarks : record.previewMarks;
+                let marksHtml = "";
+                
+                if (state.evaluatorTab === "pending") {
+                  marksHtml = 
+                    "<div class=\"hier-sub-action\">" +
+                      "<div style=\"display:flex; gap: 8px; align-items: center;\">" +
+                        "<input data-evaluator-manual=\"" + record.id + "\" type=\"number\" step=\"0.5\" value=\"" + (Number.isFinite(record.submission.marks) ? record.submission.marks : "") + "\" placeholder=\"Auto: " + record.previewMarks + "\" class=\"eval-manual-input\" />" +
+                        "<button type=\"button\" class=\"btn primary eval-verify-btn\" data-evaluator-verify-save=\"" + record.id + "\">Verify & Save</button>" +
+                      "</div>" +
+                    "</div>";
+                } else {
+                  marksHtml = 
+                    "<div class=\"hier-sub-action\">" +
+                      "<div style=\"display:flex; gap: 8px; align-items: center;\">" +
+                        "<span class=\"muted\">Locked Marks: <strong>" + currentMarks + "</strong></span>" +
+                      "</div>" +
+                    "</div>";
+                }
+                
+                listHtml += (
+                  "<div class=\"hier-sub-card\">" +
+                    "<div class=\"hier-sub-info\">" +
+                      "<strong>" + escapeHtml(record.itemTitle) + "</strong>" +
+                      "<div class=\"muted\" style=\"font-size: 0.85rem;\">Category: " + escapeHtml(record.category) + "</div>" +
+                      "<div class=\"muted\" style=\"font-size: 0.85rem;\">" + escapeHtml(record.description) + "</div>" +
+                    "</div>" +
+                    "<div class=\"hier-sub-controls\">" +
+                      "<button type=\"button\" class=\"btn ghost eval-doc-btn\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">📄 View Doc</button>" +
+                      marksHtml +
+                    "</div>" +
+                  "</div>"
+                );
+              });
+              listHtml += "</div>";
+            }
+            listHtml += "</div>";
+          });
+          listHtml += "</div>";
+        }
+        listHtml += "</div>";
       });
-      
-      const ranked = Object.keys(classScores).map(c => ({ className: c, score: classScores[c] })).sort((a,b) => b.score - a.score);
-      const maxScore = ranked.length ? Math.max(...ranked.map(r => r.score), 10) : 10;
+      listHtml += "</div>";
+    }
+    listHtml += "</div>";
+  });
 
-      let resultRows = ranked.map((r, i) => {
-         const percent = Math.min((r.score / maxScore) * 100, 100);
-         return "<div style='margin-bottom: 20px;'>" +
-                  "<div style='display:flex; justify-content:space-between; margin-bottom:5px;'><strong>#" + (i+1) + " " + escapeHtml(r.className) + "</strong><span>" + r.score.toFixed(1) + " Points</span></div>" +
-                  "<div class='simple-progress-track'><div class='simple-progress-fill' style='width:" + percent + "%; background-color: var(--primary);'></div></div>" +
-                "</div>";
-      }).join("");
-
-      tabContent = ranked.length ? "<div style='padding:15px; background:var(--surface); border-radius:var(--radius);'>" + resultRows + "</div>" : "<p class='empty-state'>No scored classes yet.</p>";
+  if (!listHtml) {
+    listHtml = "<p class='empty-state'>No " + state.evaluatorTab + " submissions match your criteria.</p>";
   }
 
   return (
     "<section class=\"panel\">" +
-    "<div class=\"button-row\" style=\"margin-bottom:20px;\">" +
-    "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "evaluation" ? "primary" : "ghost") + "\" data-evaluator-tab=\"evaluation\">Evaluation</button>" +
-    "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "results" ? "primary" : "ghost") + "\" data-evaluator-tab=\"results\">Results</button>" +
-    "</div>" +
-    tabContent +
+      searchHtml +
+      "<div class=\"hier-list\">" + listHtml + "</div>" +
     "</section>"
   );
 }
@@ -2178,6 +2289,15 @@ function handlePageClick(event) {
   if (evaluatorTabButton) {
     state.evaluatorTab = evaluatorTabButton.dataset.evaluatorTab;
     renderPage();
+    return;
+  }
+  
+  const expandTarget = event.target.closest("[data-eval-expand]");
+  if (expandTarget) {
+    const key = expandTarget.dataset.evalExpand;
+    state.evaluatorExpanded = state.evaluatorExpanded || {};
+    state.evaluatorExpanded[key] = !state.evaluatorExpanded[key];
+    refreshEvaluatorEvaluationSection();
     return;
   }
   
