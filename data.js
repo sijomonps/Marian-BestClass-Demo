@@ -131,6 +131,61 @@ window.criteriaData = [
   }
 ];
 
+window.seedStudents = [
+  { id: 1, name: "Anika Sharma", className: "BSc CS A" },
+  { id: 2, name: "Rahul Menon", className: "BSc CS A" },
+  { id: 3, name: "Sara Joseph", className: "BCom B" },
+  { id: 4, name: "Arjun Das", className: "BCom B" },
+  { id: 5, name: "Nisha Iyer", className: "BA English C" },
+  { id: 6, name: "Vikram Patel", className: "BA English C" }
+];
+
+(function addBulkStudents() {
+  const firstNames = [
+    "Aarav", "Aditi", "Arun", "Bhavya", "Chitra", "Deepak", "Divya", "Gaurav",
+    "Isha", "Kiran", "Meera", "Neeraj", "Pooja", "Rohan", "Sanya", "Vivek",
+    "Nitin", "Sonal", "Tarun", "Varun"
+  ];
+  const lastNames = [
+    "Sharma", "Patel", "Menon", "Kumar", "Iyer", "Nair", "Das", "Joseph",
+    "Singh", "Gupta", "Rao", "Kapoor", "Verma", "Pillai", "Mathew", "Bose",
+    "Chauhan", "Malhotra", "Jain", "Mukherjee"
+  ];
+  const classPlan = [
+    { className: "BSc CS A", count: 18 },
+    { className: "BSc CS B", count: 16 },
+    { className: "BCA A", count: 14 },
+    { className: "BCom A", count: 16 },
+    { className: "BCom B", count: 16 },
+    { className: "BCom C", count: 14 },
+    { className: "BA English A", count: 14 },
+    { className: "BA English B", count: 14 },
+    { className: "BSc Math A", count: 14 },
+    { className: "BSc Math B", count: 12 },
+    { className: "BSc Physics A", count: 12 },
+    { className: "BBA A", count: 14 },
+    { className: "BBA B", count: 12 },
+    { className: "BA Economics A", count: 12 }
+  ];
+
+  let nextId = window.seedStudents.reduce((maxId, student) => Math.max(maxId, student.id), 0) + 1;
+  let nameIndex = 0;
+
+  classPlan.forEach((entry) => {
+    for (let i = 0; i < entry.count; i += 1) {
+      const first = firstNames[nameIndex % firstNames.length];
+      const last = lastNames[Math.floor(nameIndex / firstNames.length) % lastNames.length];
+      window.seedStudents.push({
+        id: nextId,
+        name: first + " " + last,
+        className: entry.className
+      });
+      nextId += 1;
+      nameIndex += 1;
+    }
+  });
+})();
+
 window.seedSubmissions = [
   {
     id: 1,
@@ -457,3 +512,59 @@ window.seedSubmissions = [
     evidence: { type: "count", count: 1 }
   }
 ];
+
+(function addBulkSubmissions() {
+  const criteriaIndex = {};
+  window.criteriaData.forEach((category) => {
+    (category.items || []).forEach((item) => {
+      criteriaIndex[item.id] = item;
+    });
+  });
+
+  const criteriaIds = Object.keys(criteriaIndex).map((key) => Number(key));
+  if (!criteriaIds.length) {
+    return;
+  }
+
+  const statuses = ["Approved", "Pending", "Correction Requested", "Rejected"];
+  let nextId = window.seedSubmissions.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1;
+
+  window.seedStudents.forEach((student, index) => {
+    if (student.id <= 6) {
+      return;
+    }
+
+    const entryCount = 5 + (index % 4);
+    for (let i = 0; i < entryCount; i += 1) {
+      const criteriaId = criteriaIds[(student.id + i) % criteriaIds.length];
+      const criteria = criteriaIndex[criteriaId];
+      const status = statuses[(student.id + i) % statuses.length];
+      const evidence = { type: criteria.type };
+
+      if (criteria.type === "count") {
+        evidence.count = 1 + ((student.id + i) % 5);
+      } else if (criteria.type === "range") {
+        evidence.value = 60 + ((student.id + i * 7) % 40);
+      } else if (criteria.type === "boolean") {
+        evidence.checked = ((student.id + i) % 2 === 0);
+      } else if (criteria.type === "negative") {
+        evidence.count = 1 + ((student.id + i) % 2);
+      }
+
+      window.seedSubmissions.push({
+        id: nextId,
+        studentId: student.id,
+        criteriaId: criteriaId,
+        academicYear: "2025-2026",
+        description: criteria.title + " evidence submitted for demo.",
+        status: status,
+        remarks: status === "Approved" ? "Verified for demo." : "Awaiting review.",
+        marks: null,
+        proof: "proof_" + student.id + "_" + criteriaId + ".pdf",
+        evaluatorVerified: status === "Approved",
+        evidence: evidence
+      });
+      nextId += 1;
+    }
+  });
+})();

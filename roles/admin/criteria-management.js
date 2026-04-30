@@ -44,7 +44,9 @@ window.applyPageConfig({
               .map((item) => {
                 return (
                   "<li class=\"simple-group-item\">" +
-                  "<div class=\"simple-group-main\"><p><strong>" + ctx.escapeHtml(item.title) + "</strong></p><p class=\"muted\">Type: " + ctx.escapeHtml(ctx.getCriteriaTypeLabel(item.type)) + " | Marks: " + ctx.escapeHtml(getMaxMarksLabel(item)) + "</p><p class=\"muted\">" + ctx.escapeHtml(ctx.getCriteriaRuleSummary(item)) + "</p></div>" +
+                  "<div class=\"simple-group-main\"><p><strong>" + ctx.escapeHtml(item.title) + "</strong></p><p class=\"muted\">Type: " + ctx.escapeHtml(ctx.getCriteriaTypeLabel(item.type)) + " | Marks: " + ctx.escapeHtml(getMaxMarksLabel(item)) + "</p>" +
+                  (item.description ? "<p class=\"muted\" style=\"font-size: 0.85rem; margin-top: 4px; color: var(--color-text-soft);\">" + ctx.escapeHtml(item.description) + "</p>" : "") +
+                  "<p class=\"muted\">" + ctx.escapeHtml(ctx.getCriteriaRuleSummary(item)) + "</p></div>" +
                   "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-item-edit=\"" + item.id + "\">Edit</button><button type=\"button\" class=\"btn danger\" data-item-delete=\"" + item.id + "\">Delete</button></div>" +
                   "</li>"
                 );
@@ -86,7 +88,7 @@ window.applyPageConfig({
       "</section>" +
       "<section class=\"cards-grid two-panel-grid\">" +
       "<article class=\"panel\"><h3>" + (editingCategory ? "Edit Category" : "Add Category") + "</h3><form id=\"category-form\" class=\"stack-form\" data-editing-category=\"" + (editingCategory ? editingCategory.id : "") + "\"><div class=\"field\"><label for=\"category-title\">Category Name</label><input id=\"category-title\" name=\"categoryTitle\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingCategory ? editingCategory.category : "") + "\" /></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingCategory ? "Update Category" : "Add Category") + "</button><button type=\"button\" id=\"cancel-category-edit\" class=\"btn ghost" + (editingCategory ? "" : " hidden") + "\">Cancel</button></div></form></article>" +
-      "<article class=\"panel\"><h3>" + (editingItem ? "Edit Item" : "Add Item") + "</h3><form id=\"criteria-item-form\" class=\"stack-form\" data-editing-item=\"" + (editingItem ? editingItem.id : "") + "\"><div class=\"field\"><label for=\"criteria-item-category\">Category Name</label><select id=\"criteria-item-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div><div class=\"field\"><label for=\"criteria-item-title\">Item Name</label><input id=\"criteria-item-title\" name=\"title\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingItem ? editingItem.title : "") + "\" /></div><div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + fixedSelected + ">Fixed</option><option value=\"count\"" + countSelected + ">Count</option><option value=\"range\"" + rangeSelected + ">Range</option><option value=\"boolean\"" + booleanSelected + ">Boolean</option><option value=\"negative\"" + negativeSelected + ">Negative</option></select></div><div class=\"field\"><label for=\"criteria-item-marks\">Marks</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div><div id=\"criteria-item-range-fields\" class=\"stack-form two-col" + (editingItem && editingItem.type === "range" ? "" : " hidden") + "\"><div class=\"field\"><label for=\"criteria-item-range-min\">Range Start</label><input id=\"criteria-item-range-min\" name=\"rangeMin\" type=\"number\" step=\"0.01\" value=\"" + (editingRangeRule && Number.isFinite(editingRangeRule.min) ? editingRangeRule.min : "") + "\" /></div><div class=\"field\"><label for=\"criteria-item-range-max\">Range End</label><input id=\"criteria-item-range-max\" name=\"rangeMax\" type=\"number\" step=\"0.01\" value=\"" + (editingRangeRule && Number.isFinite(editingRangeRule.max) ? editingRangeRule.max : "") + "\" /></div></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "Update Item" : "Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost" + (editingItem ? "" : " hidden") + "\">Cancel</button></div></form></article>" +
+      "<article class=\"panel\"><h3>" + (editingItem ? "Edit Item" : "Add Item") + "</h3><form id=\"criteria-item-form\" class=\"stack-form\" data-editing-item=\"" + (editingItem ? editingItem.id : "") + "\"><div class=\"field\"><label for=\"criteria-item-category\">Category Name</label><select id=\"criteria-item-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div><div class=\"field\"><label for=\"criteria-item-title\">Item Name</label><input id=\"criteria-item-title\" name=\"title\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingItem ? editingItem.title : "") + "\" /></div><div class=\"field\"><label for=\"criteria-item-description\">Description</label><input id=\"criteria-item-description\" name=\"description\" type=\"text\" value=\"" + ctx.escapeAttribute(editingItem && editingItem.description ? editingItem.description : "") + "\" placeholder=\"Optional description for students\" /></div><div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + fixedSelected + ">Fixed</option><option value=\"count\"" + countSelected + ">Count</option><option value=\"range\"" + rangeSelected + ">Range</option><option value=\"boolean\"" + booleanSelected + ">Boolean</option><option value=\"negative\"" + negativeSelected + ">Negative</option></select></div><div class=\"field\"><label for=\"criteria-item-marks\">Marks</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div><div id=\"criteria-item-range-fields\" class=\"stack-form two-col" + (editingItem && editingItem.type === "range" ? "" : " hidden") + "\"><div class=\"field\"><label for=\"criteria-item-range-min\">Range Start</label><input id=\"criteria-item-range-min\" name=\"rangeMin\" type=\"number\" step=\"0.01\" value=\"" + (editingRangeRule && Number.isFinite(editingRangeRule.min) ? editingRangeRule.min : "") + "\" /></div><div class=\"field\"><label for=\"criteria-item-range-max\">Range End</label><input id=\"criteria-item-range-max\" name=\"rangeMax\" type=\"number\" step=\"0.01\" value=\"" + (editingRangeRule && Number.isFinite(editingRangeRule.max) ? editingRangeRule.max : "") + "\" /></div></div><div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">" + (editingItem ? "Update Item" : "Add Item") + "</button><button type=\"button\" id=\"cancel-item-edit\" class=\"btn ghost" + (editingItem ? "" : " hidden") + "\">Cancel</button></div></form></article>" +
       "</section>" +
       "<section class=\"panel\"><h3>Grouped List</h3><div class=\"simple-group-wrap\">" + groupedListHtml + "</div></section>" +
       "<section class=\"cards-grid two-panel-grid\">" +
@@ -255,6 +257,7 @@ window.applyPageConfig({
     const formData = new FormData(form);
     const categoryId = String(formData.get("categoryId") || "").trim();
     const title = String(formData.get("title") || "").trim();
+    const description = String(formData.get("description") || "").trim();
     const type = ctx.normalizeCriteriaType(formData.get("type"));
 
     if (!categoryId || !title) {
@@ -322,6 +325,7 @@ window.applyPageConfig({
       }
 
       targetItem.title = title;
+      targetItem.description = description;
       targetItem.category = category.category;
       targetItem.type = type;
       targetItem.marks = marksValue;
@@ -337,6 +341,7 @@ window.applyPageConfig({
         id: nextId,
         category: category.category,
         title: title,
+        description: description,
         type: type,
         marks: marksValue,
         rules: type === "range" ? parsedRules : []
@@ -387,6 +392,7 @@ window.applyPageConfig({
     const criteriaForm = "<form id=\"criteria-item-form\" class=\"stack-form\" data-editing-item=\"" + (editingItem ? editingItem.id : "") + "\">" +
       "<div class=\"field\"><label for=\"criteria-item-category\">Category</label><select id=\"criteria-item-category\" name=\"categoryId\" required>" + payload.categoryOptions + "</select></div>" +
       "<div class=\"field\"><label for=\"criteria-item-title\">Title</label><input id=\"criteria-item-title\" name=\"title\" type=\"text\" required value=\"" + ctx.escapeAttribute(editingItem ? editingItem.title : "") + "\" /></div>" +
+      "<div class=\"field\"><label for=\"criteria-item-description\">Description</label><input id=\"criteria-item-description\" name=\"description\" type=\"text\" value=\"" + ctx.escapeAttribute(editingItem && editingItem.description ? editingItem.description : "") + "\" /></div>" +
       "<div class=\"field\"><label for=\"criteria-item-type\">Type</label><select id=\"criteria-item-type\" name=\"type\"><option value=\"fixed\"" + payload.fixedSelected + ">Fixed</option><option value=\"count\"" + payload.countSelected + ">Count Based</option><option value=\"range\"" + payload.rangeSelected + ">Range Based</option><option value=\"boolean\"" + payload.booleanSelected + ">Boolean</option><option value=\"negative\"" + payload.negativeSelected + ">Negative Marks</option></select></div>" +
       "<div class=\"field\"><label for=\"criteria-item-marks\">Max Marks</label><input id=\"criteria-item-marks\" name=\"marks\" type=\"number\" step=\"0.5\" value=\"" + (editingItem && Number.isFinite(editingItem.marks) ? editingItem.marks : "") + "\" /></div>" +
       "<div id=\"criteria-item-range-fields\" class=\"stack-form two-col" + (editingItem && editingItem.type === "range" ? "" : " hidden") + "\">" +

@@ -1,4 +1,4 @@
 window.applyPageConfig({
   autoRole: "hod",
-  autoPage: "reports"
+  autoPage: "feedback"
 });

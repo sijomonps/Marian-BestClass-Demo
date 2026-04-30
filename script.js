@@ -29,19 +29,28 @@ const roleConfig = {
     label: "Admin",
     heading: "Admin Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "academic-years", label: "Academic Years", icon: "📅" },
       { page: "criteria", label: "Criteria Management", icon: "⚙️" },
       { page: "users", label: "User Management", icon: "👥" },
       { page: "departments", label: "Department Management", icon: "🏛️" },
       { page: "settings", label: "Settings", icon: "🔧" }
     ]
   },
-  hod: {
-    label: "HOD / IQAC",
-    heading: "HOD / IQAC Workspace",
+  iqac: {
+    label: "IQAC",
+    heading: "Institution Monitoring",
     menu: [
       { page: "dashboard", label: "Dashboard", icon: "📊" },
-      { page: "reports", label: "Reports", icon: "📉" }
+      { page: "reports", label: "Reports", icon: "📉" },
+      { page: "remarks", label: "Remarks", icon: "📝" }
+    ]
+  },
+  hod: {
+    label: "HOD",
+    heading: "Department Monitoring",
+    menu: [
+      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "feedback", label: "Feedback", icon: "💬" }
     ]
   }
 };
@@ -50,7 +59,8 @@ const adminManagedRoleOptions = [
   { value: "student", label: "Student" },
   { value: "teacher", label: "Class Teacher" },
   { value: "evaluator", label: "Evaluation Team" },
-  { value: "hod", label: "HOD / IQAC" },
+  { value: "hod", label: "HOD" },
+  { value: "iqac", label: "IQAC" },
   { value: "admin", label: "Admin" }
 ];
 
@@ -105,11 +115,16 @@ function createAcademicYearState(years, activeYear) {
 
 const evaluatorDepartmentRules = [
   { match: "bsc cs", department: "Computer Science" },
+  { match: "bca", department: "Computer Applications" },
   { match: "bcom", department: "Commerce" },
-  { match: "ba english", department: "English" }
+  { match: "bba", department: "Business Administration" },
+  { match: "ba english", department: "English" },
+  { match: "ba economics", department: "Economics" },
+  { match: "bsc math", department: "Mathematics" },
+  { match: "bsc physics", department: "Physics" }
 ];
 
-const students = [
+const defaultStudents = [
   { id: 1, name: "Anika Sharma", className: "BSc CS A" },
   { id: 2, name: "Rahul Menon", className: "BSc CS A" },
   { id: 3, name: "Sara Joseph", className: "BCom B" },
@@ -117,6 +132,10 @@ const students = [
   { id: 5, name: "Nisha Iyer", className: "BA English C" },
   { id: 6, name: "Vikram Patel", className: "BA English C" }
 ];
+
+const students = Array.isArray(window.seedStudents) && window.seedStudents.length
+  ? window.seedStudents
+  : defaultStudents;
 
 let criteriaCatalog = cloneCriteriaCatalog(window.criteriaData || []);
 let submissions = cloneSubmissions(window.seedSubmissions || []);
@@ -158,8 +177,14 @@ const state = {
   listViews: {
     studentSubmissions: createDefaultListViewState(),
     teacherVerification: createDefaultListViewState(),
-    evaluatorEvaluation: createDefaultEvaluatorListViewState()
+    evaluatorEvaluation: createDefaultEvaluatorListViewState(),
+    hodClasses: createDefaultListViewState(),
+    iqacDepartments: createDefaultListViewState()
   },
+  hodSelectedClass: null,
+  iqacSelectedDepartment: null,
+  hodFeedbackEntries: [],
+  iqacRemarksEntries: [],
   criteriaByYear: {},
   criteriaHistoryByYear: {}
 };
@@ -222,6 +247,19 @@ function applyAutoPageConfig() {
   state.loggedIn = true;
   state.currentRole = appPageConfig.autoRole;
   state.activePage = appPageConfig.autoPage;
+  const currentUser = state.currentUserId ? findUserById(state.currentUserId) : null;
+  if (!currentUser || normalizeUserRole(currentUser.role) !== state.currentRole) {
+    const autoUser = users.find((user) => {
+      return normalizeUserRole(user.role) === state.currentRole && user.isApproved !== false;
+    });
+    state.currentUserId = autoUser ? autoUser.id : null;
+    if (state.currentRole === "student" && autoUser) {
+      const linkedStudentId = ensureStudentLinkedToUser(autoUser);
+      if (linkedStudentId) {
+        state.currentStudentId = linkedStudentId;
+      }
+    }
+  }
   state.editingSubmissionId = null;
   state.editingCriteriaItemId = null;
   resetEvaluatorFlow();
@@ -957,10 +995,22 @@ function renderPage() {
     } else if (state.activePage === "settings") {
       content = renderAdminSettingsPage();
     } else {
-      content = renderAdminDashboard();
+      content = renderAdminAcademicYearPage();
+    }
+  } else if (state.currentRole === "hod") {
+    if (state.activePage === "feedback") {
+      content = renderHodFeedbackPage();
+    } else {
+      content = renderHodDashboardPage();
     }
   } else {
-    content = state.activePage === "reports" ? renderHodReportsPage() : renderHodDashboard();
+    if (state.activePage === "reports") {
+      content = renderIqacReportsPage();
+    } else if (state.activePage === "remarks") {
+      content = renderIqacRemarksPage();
+    } else {
+      content = renderIqacDashboardPage();
+    }
   }
 
   ui.pageContent.innerHTML = "<div class=\"page-stack\">" + content + "</div>";
@@ -1284,10 +1334,12 @@ function renderStudentSubmitPage() {
 }
 
 function renderCriteriaRuleCard(criteriaItem) {
+  const descriptionHtml = criteriaItem.description ? "<p class=\"muted\" style=\"margin-top: 8px; color: var(--color-text-soft); font-style: italic;\">" + escapeHtml(criteriaItem.description) + "</p>" : "";
   return (
     "<div class=\"criteria-rule-card full-span\">" +
     "<div><span class=\"criteria-chip\">" + escapeHtml(getCriteriaTypeLabel(criteriaItem.type)) + "</span><h3>" + escapeHtml(criteriaItem.title) + "</h3></div>" +
     "<p>" + escapeHtml(getCriteriaRuleSummary(criteriaItem)) + "</p>" +
+    descriptionHtml +
     "</div>"
   );
 }
@@ -1380,6 +1432,14 @@ function ensureListViewState() {
 
   if (!state.listViews.evaluatorEvaluation || typeof state.listViews.evaluatorEvaluation !== "object") {
     state.listViews.evaluatorEvaluation = createDefaultEvaluatorListViewState();
+  }
+
+  if (!state.listViews.hodClasses || typeof state.listViews.hodClasses !== "object") {
+    state.listViews.hodClasses = createDefaultListViewState();
+  }
+
+  if (!state.listViews.iqacDepartments || typeof state.listViews.iqacDepartments !== "object") {
+    state.listViews.iqacDepartments = createDefaultListViewState();
   }
 }
 
@@ -2013,67 +2073,191 @@ function renderEvaluatorDashboard() {
 }
 
 function renderEvaluatorEvaluationSection() {
-  state.evaluatorTab = state.evaluatorTab || "evaluation";
+  state.evaluatorLevel = state.evaluatorLevel || "departments";
+  if (state.evaluatorTab === "evaluation" || state.evaluatorTab === "results") {
+    state.evaluatorTab = "pending";
+  }
+  state.evaluatorTab = state.evaluatorTab || "pending";
+  const viewState = state.listViews.evaluatorEvaluation || createDefaultEvaluatorListViewState();
+  const searchFilter = normalizeFilterText(viewState.search || "");
+  
+  const metrics = { departments: {}, classes: {}, students: {} };
+  
+  submissions.forEach(sub => {
+    if (sub.status !== workflowStatus.VERIFIED && sub.status !== workflowStatus.LOCKED && sub.status !== workflowStatus.EVALUATED) return;
+    
+    const record = createSubmissionViewRecord(sub);
+    const dept = record.department || "General";
+    const cls = record.className || "General";
+    const stuId = record.studentId;
+    const stuName = record.studentName;
+    
+    const isComp = (record.status === workflowStatus.LOCKED || record.status === workflowStatus.EVALUATED) ? 1 : 0;
+    
+    if (!metrics.departments[dept]) metrics.departments[dept] = { name: dept, total: 0, completed: 0, show: false };
+    if (!metrics.classes[cls]) metrics.classes[cls] = { name: cls, department: dept, total: 0, completed: 0, show: false };
+    if (!metrics.students[stuId]) metrics.students[stuId] = { id: stuId, name: stuName, class: cls, department: dept, total: 0, completed: 0, submissions: [], show: false };
+    
+    metrics.departments[dept].total++;
+    metrics.departments[dept].completed += isComp;
+    metrics.classes[cls].total++;
+    metrics.classes[cls].completed += isComp;
+    metrics.students[stuId].total++;
+    metrics.students[stuId].completed += isComp;
+    metrics.students[stuId].submissions.push(record);
+    
+    let matchesTab = false;
+    if (state.evaluatorTab === "pending" && !isComp) matchesTab = true;
+    if (state.evaluatorTab === "completed" && isComp) matchesTab = true;
+    
+    let matchesSearch = true;
+    if (searchFilter && stuName.toLowerCase().indexOf(searchFilter) === -1) matchesSearch = false;
+    
+    let matchesFilters = true;
+    if (viewState.department !== allFilterValue && viewState.department !== dept) matchesFilters = false;
+    if (viewState.className !== allFilterValue && viewState.className !== cls) matchesFilters = false;
+    if (state.evaluatorLevel === "submissions" && state.evaluatorSelectedStudentId !== stuId) matchesFilters = false;
 
-  let tabContent = "";
-  if (state.evaluatorTab === "evaluation") {
-      const records = submissions
-        .filter(item => isSubmissionVerified(item.status) || isSubmissionLocked(item.status))
-        .sort((a, b) => b.id - a.id)
-        .map(item => createSubmissionViewRecord(item));
+    if (matchesTab && matchesSearch && matchesFilters) {
+      metrics.departments[dept].show = true;
+      metrics.classes[cls].show = true;
+      metrics.students[stuId].show = true;
+      record.show = true;
+    } else {
+      record.show = false;
+    }
+  });
 
-      const cards = records.map(record => {
-          const currentMarks = record.finalMarks !== null ? record.finalMarks : record.previewMarks;
-          const marksHtml = record.canEvaluate
-          ? "<div class=\"field eval-manual-field\"><label>Manual Marks</label><input data-evaluator-manual=\"" + record.id + "\" type=\"number\" step=\"0.5\" value=\"" + (Number.isFinite(record.submission.marks) ? record.submission.marks : "") + "\" placeholder=\"Auto: " + record.previewMarks + "\" /></div>" +
-            "<div class=\"button-row\"><button type=\"button\" class=\"btn primary full\" data-evaluator-verify-save=\"" + record.id + "\">Verify & Save</button></div>"
-          : "<div class=\"meta-list\" style=\"margin-bottom:8px;\"><p><strong>Locked Marks:</strong> " + currentMarks + "</p></div>" +
-            "<div class=\"button-row\"><button type=\"button\" class=\"btn ghost full\" data-evaluator-edit-marks=\"" + record.id + "\">Edit Marks</button></div>";
+  const deptOptions = Object.keys(metrics.departments).sort().map(d => "<option value=\"" + escapeAttribute(d) + "\"" + (viewState.department === d ? " selected" : "") + ">" + escapeHtml(d) + "</option>").join("");
+  const clsOptions = Object.keys(metrics.classes).filter(c => viewState.department === allFilterValue || metrics.classes[c].department === viewState.department).sort().map(c => "<option value=\"" + escapeAttribute(c) + "\"" + (viewState.className === c ? " selected" : "") + ">" + escapeHtml(c) + "</option>").join("");
 
+  const topBarHtml = (
+    "<div class=\"eval-top-bar\">" +
+      "<div style=\"display:flex; gap:12px; flex-wrap:wrap; width:100%; align-items:center;\">" +
+        "<div class=\"button-row\">" +
+          "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "pending" ? "primary" : "ghost") + "\" data-evaluator-tab=\"pending\">Pending</button>" +
+          "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "completed" ? "primary" : "ghost") + "\" data-evaluator-tab=\"completed\">Completed</button>" +
+        "</div>" +
+        "<input type=\"text\" class=\"field eval-search-input\" placeholder=\"Search student...\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"search\" value=\"" + escapeAttribute(viewState.search || "") + "\" style=\"flex:1; min-width:200px;\" />" +
+        "<select class=\"field\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"department\">" +
+          "<option value=\"all\">All Departments</option>" + deptOptions +
+        "</select>" +
+        "<select class=\"field\" data-list-target=\"evaluator-evaluation\" data-list-filter=\"className\">" +
+          "<option value=\"all\">All Classes</option>" + clsOptions +
+        "</select>" +
+      "</div>" +
+    "</div>"
+  );
+
+  let contentHtml = "";
+  let breadcrumbTitle = "";
+  
+  if (state.evaluatorLevel === "departments") {
+    breadcrumbTitle = "Departments";
+    const deptsToShow = Object.values(metrics.departments).filter(d => d.show).sort((a,b) => a.name.localeCompare(b.name));
+    
+    contentHtml = deptsToShow.map(dept => {
+      const pct = dept.total > 0 ? (dept.completed / dept.total) * 100 : 0;
+      return (
+        "<div class=\"eval-list-row\" data-eval-navigate=\"classes\" data-eval-dept=\"" + escapeAttribute(dept.name) + "\">" +
+          "<div class=\"eval-row-main\"><strong>" + escapeHtml(dept.name) + "</strong></div>" +
+          "<div class=\"eval-row-progress\"><span class=\"muted\" style=\"font-size:0.85rem; margin-right:12px;\">" + dept.completed + " / " + dept.total + " Verified</span><div class=\"eval-progress-bar\"><div style=\"width: " + pct + "%\"></div></div></div>" +
+          "<div class=\"eval-row-arrow\">›</div>" +
+        "</div>"
+      );
+    }).join("");
+    if (!contentHtml) contentHtml = "<p class='empty-state'>No departments match your search or filters.</p>";
+  } 
+  else if (state.evaluatorLevel === "classes") {
+    breadcrumbTitle = (viewState.department !== allFilterValue ? escapeHtml(viewState.department) + " / " : "") + "Classes";
+    const classesToShow = Object.values(metrics.classes).filter(c => c.show).sort((a,b) => a.name.localeCompare(b.name));
+    
+    contentHtml = classesToShow.map(cls => {
+      const pct = cls.total > 0 ? (cls.completed / cls.total) * 100 : 0;
+      return (
+        "<div class=\"eval-list-row\" data-eval-navigate=\"students\" data-eval-class=\"" + escapeAttribute(cls.name) + "\">" +
+          "<div class=\"eval-row-main\"><strong>" + escapeHtml(cls.name) + "</strong></div>" +
+          "<div class=\"eval-row-progress\"><span class=\"muted\" style=\"font-size:0.85rem; margin-right:12px;\">" + cls.completed + " / " + cls.total + " Verified</span><div class=\"eval-progress-bar\"><div style=\"width: " + pct + "%\"></div></div></div>" +
+          "<div class=\"eval-row-arrow\">›</div>" +
+        "</div>"
+      );
+    }).join("");
+    if (!contentHtml) contentHtml = "<p class='empty-state'>No classes match your search or filters.</p>";
+  }
+  else if (state.evaluatorLevel === "students") {
+    breadcrumbTitle = (viewState.className !== allFilterValue ? escapeHtml(viewState.className) + " / " : "") + "Students";
+    const studentsToShow = Object.values(metrics.students).filter(s => s.show).sort((a,b) => a.name.localeCompare(b.name));
+    
+    contentHtml = studentsToShow.map(stu => {
+      const pendingText = state.evaluatorTab === "completed" ? "completed" : "pending";
+      const count = stu.submissions.filter(r => r.show).length;
+      return (
+        "<div class=\"eval-list-row\" data-eval-navigate=\"submissions\" data-eval-student=\"" + stu.id + "\">" +
+          "<div class=\"eval-row-main\"><strong>" + escapeHtml(stu.name) + "</strong></div>" +
+          "<div class=\"eval-row-badge\">" + count + " " + pendingText + " submissions</div>" +
+          "<div class=\"eval-row-arrow\" style=\"margin-left: 12px;\">›</div>" +
+        "</div>"
+      );
+    }).join("");
+    if (!contentHtml) contentHtml = "<p class='empty-state'>No students match your search or filters.</p>";
+  }
+  else if (state.evaluatorLevel === "submissions") {
+    const studentData = metrics.students[state.evaluatorSelectedStudentId];
+    breadcrumbTitle = studentData ? escapeHtml(studentData.name) + " / Submissions" : "Submissions";
+    
+    if (studentData) {
+      contentHtml = studentData.submissions.filter(r => r.show).map(record => {
+        const currentMarks = record.finalMarks !== null ? record.finalMarks : record.previewMarks;
+        let marksHtml = "";
+        
+        if (state.evaluatorTab === "pending") {
+          marksHtml = 
+            "<div class=\"eval-sub-action\">" +
+              "<div style=\"display:flex; gap: 8px; align-items: center;\">" +
+                "<input data-evaluator-manual=\"" + record.id + "\" type=\"number\" step=\"0.5\" value=\"" + (Number.isFinite(record.submission.marks) ? record.submission.marks : "") + "\" placeholder=\"Auto: " + record.previewMarks + "\" class=\"eval-manual-input\" />" +
+                "<button type=\"button\" class=\"btn primary eval-verify-btn\" data-evaluator-verify-save=\"" + record.id + "\">Verify & Save</button>" +
+              "</div>" +
+            "</div>";
+        } else {
+          marksHtml = 
+            "<div class=\"eval-sub-action\">" +
+              "<div style=\"display:flex; gap: 8px; align-items: center;\">" +
+                "<span class=\"muted\">Locked Marks: <strong>" + currentMarks + "</strong></span>" +
+              "</div>" +
+            "</div>";
+        }
+        
         return (
-          "<article class=\"submission-card\">" +
-          "<div class=\"submission-head\"><h4>" + escapeHtml(record.studentName) + "</h4><span class=\"status-pill " + getStatusClass(record.status) + "\">" + escapeHtml(record.status) + "</span></div>" +
-          "<div class=\"meta-list\">" +
-          "<p><strong>Category:</strong> " + escapeHtml(record.category) + "</p>" +
-          "<p><strong>Rule Marks:</strong> " + safeMark(record.previewMarks).toFixed(1) + "</p>" +
-          "</div>" +
-          "<div class=\"button-row\" style=\"margin-top:12px;margin-bottom:12px;\"><button type=\"button\" class=\"btn ghost full\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">📄 View Document</button></div>" +
-          marksHtml +
-          "</article>"
+          "<div class=\"eval-sub-card\">" +
+            "<div class=\"eval-sub-info\">" +
+              "<strong>" + escapeHtml(record.itemTitle) + "</strong>" +
+              "<div class=\"muted\" style=\"font-size: 0.85rem;\">Category: " + escapeHtml(record.category) + "</div>" +
+              "<div class=\"muted\" style=\"font-size: 0.85rem;\">" + escapeHtml(record.description) + "</div>" +
+            "</div>" +
+            "<div class=\"eval-sub-controls\">" +
+              "<button type=\"button\" class=\"btn ghost eval-doc-btn\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">📄 View Doc</button>" +
+              marksHtml +
+            "</div>" +
+          "</div>"
         );
       }).join("");
-      tabContent = cards ? "<div class='submission-grid'>" + cards + "</div>" : "<p class='empty-state'>No verified submissions to evaluate.</p>";
-  } else if (state.evaluatorTab === "results") {
-      const classScores = {};
-      submissions.filter(s => s.status === workflowStatus.LOCKED || s.status === workflowStatus.EVALUATED).forEach(s => {
-         const user = findUserById(s.studentId);
-         if (user && user.class) {
-             if (!classScores[user.class]) classScores[user.class] = 0;
-             classScores[user.class] += getSubmissionEffectiveMarks(s);
-         }
-      });
-      
-      const ranked = Object.keys(classScores).map(c => ({ className: c, score: classScores[c] })).sort((a,b) => b.score - a.score);
-      const maxScore = ranked.length ? Math.max(...ranked.map(r => r.score), 10) : 10;
-
-      let resultRows = ranked.map((r, i) => {
-         const percent = Math.min((r.score / maxScore) * 100, 100);
-         return "<div style='margin-bottom: 20px;'>" +
-                  "<div style='display:flex; justify-content:space-between; margin-bottom:5px;'><strong>#" + (i+1) + " " + escapeHtml(r.className) + "</strong><span>" + r.score.toFixed(1) + " Points</span></div>" +
-                  "<div class='simple-progress-track'><div class='simple-progress-fill' style='width:" + percent + "%; background-color: var(--primary);'></div></div>" +
-                "</div>";
-      }).join("");
-
-      tabContent = ranked.length ? "<div style='padding:15px; background:var(--surface); border-radius:var(--radius);'>" + resultRows + "</div>" : "<p class='empty-state'>No scored classes yet.</p>";
+    }
+    if (!contentHtml) contentHtml = "<p class='empty-state'>No submissions match your search or filters.</p>";
   }
+
+  const backBtnHtml = state.evaluatorLevel !== "departments" ? "<button type=\"button\" class=\"btn ghost\" data-evaluator-back=\"true\" style=\"padding: 6px 12px; margin-right: 12px;\">← Back</button>" : "";
+  const navBarHtml = (
+    "<div style=\"display:flex; align-items:center; margin-bottom: 16px;\">" +
+      backBtnHtml +
+      "<h3 style=\"margin:0; font-size:1.1rem;\">" + breadcrumbTitle + "</h3>" +
+    "</div>"
+  );
 
   return (
     "<section class=\"panel\">" +
-    "<div class=\"button-row\" style=\"margin-bottom:20px;\">" +
-    "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "evaluation" ? "primary" : "ghost") + "\" data-evaluator-tab=\"evaluation\">Evaluation</button>" +
-    "<button type=\"button\" class=\"btn " + (state.evaluatorTab === "results" ? "primary" : "ghost") + "\" data-evaluator-tab=\"results\">Results</button>" +
-    "</div>" +
-    tabContent +
+      topBarHtml +
+      navBarHtml +
+      "<div class=\"eval-list-container\">" + contentHtml + "</div>" +
     "</section>"
   );
 }
@@ -2119,33 +2303,34 @@ function refreshEvaluatorEvaluationSection() {
   }
   root.innerHTML = renderEvaluatorEvaluationSection();
 }
-function renderAdminDashboard() {
-  if (window.adminDashboardModule && typeof window.adminDashboardModule.renderDashboard === "function") {
-    return window.adminDashboardModule.renderDashboard({
+function renderAdminAcademicYearPage() {
+  if (window.adminAcademicYearModule && typeof window.adminAcademicYearModule.renderPage === "function") {
+    return window.adminAcademicYearModule.renderPage({
       state: state,
       academicYears: academicYears,
-      submissions: submissions,
-      getSubmissionsForYear: getSubmissionsForYear,
-      students: students,
-      criteriaCatalog: criteriaCatalog,
-      buildSummaryMetrics: buildSummaryMetrics,
-      buildClassPerformance: buildClassPerformance,
       getActiveAcademicYear: getActiveAcademicYear,
-      getAllCriteriaItems: getAllCriteriaItems,
-      getSystemModeStatusClass: getSystemModeStatusClass,
-      getSystemModeLabel: getSystemModeLabel,
-      renderDashboardCards: renderDashboardCards,
-      renderStatusProgress: renderStatusProgress,
-      escapeHtml: escapeHtml
+      setActiveAcademicYear: setActiveAcademicYear,
+      addAcademicYear: function(year) {
+        if (!academicYears.includes(year)) {
+          academicYears.push(year);
+          academicYears.sort().reverse();
+          state.academicYearState.push({
+            year: year,
+            isActive: false,
+            isLocked: false
+          });
+        }
+      },
+      renderTopbar: renderTopbar,
+      renderPage: renderPage,
+      showToast: showToast,
+      escapeHtml: escapeHtml,
+      escapeAttribute: escapeAttribute,
+      openConfirmModal: openConfirmModal
     });
   }
 
-  const metrics = buildSummaryMetrics(submissions);
-  return (
-    "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Overview of criteria, submissions, and yearly setup.</p></div></section>" +
-    renderDashboardCards(metrics) +
-    renderStatusProgress("Workflow Status", metrics)
-  );
+  return "<p>Module not loaded.</p>";
 }
 
 function renderAdminCriteriaPage() {
@@ -2256,7 +2441,7 @@ function renderAdminSettingsPage() {
   );
 }
 
-function renderHodDashboard() {
+function renderIqacDashboard() {
   const performance = buildClassPerformance();
   const metrics = {
     total: submissions.length,
@@ -2269,14 +2454,14 @@ function renderHodDashboard() {
   };
 
   return (
-    "<section class=\"section-header\"><div><h1>HOD / IQAC Dashboard</h1><p class=\"muted\">Institution-level performance overview.</p></div></section>" +
+    "<section class=\"section-header\"><div><h1>IQAC/HOD Dashboard</h1><p class=\"muted\">Department-level overall class performance overview.</p></div></section>" +
     renderDashboardCards(metrics) +
-    renderCategoryBreakdown(submissions, "Institution Score by Category") +
-    renderStatusProgress("Institution Submission Health", metrics)
+    renderCategoryBreakdown(submissions, "Department Score by Category") +
+    renderStatusProgress("Department Submission Health", metrics)
   );
 }
 
-function renderHodReportsPage() {
+function renderIqacReportsPage() {
   const ranked = buildClassPerformance().sort((a, b) => {
     if (b.totalScore === a.totalScore) {
       return b.normalizedScore - a.normalizedScore;
@@ -2289,7 +2474,7 @@ function renderHodReportsPage() {
   const leaderboardRows = ranked
     .map((entry, index) => {
       const topClass = index === 0 ? "top-1" : index === 1 ? "top-2" : index === 2 ? "top-3" : "";
-      const medal = index === 0 ? "ðŸ¥‡" : index === 1 ? "ðŸ¥ˆ" : index === 2 ? "ðŸ¥‰" : "#" + (index + 1);
+      const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "#" + (index + 1);
       const width = (entry.totalScore / maxScore) * 100;
       return (
         "<article class=\"leaderboard-row " + topClass + "\">" +
@@ -2313,16 +2498,593 @@ function renderHodReportsPage() {
         "<td>" + entry.normalizedScore.toFixed(1) + "</td>" +
         "<td>" + entry.percentile.toFixed(1) + "</td>" +
         "<td><span class=\"grade-badge " + getGradeClass(entry.grade) + "\">" + entry.grade + "</span></td>" +
+        "<td><button class=\"btn ghost\" onclick=\"alert('Feedback provided for " + escapeHtml(entry.className) + "')\">Provide Feedback</button></td>" +
         "</tr>"
       );
     })
     .join("");
 
   return (
-    "<section class=\"section-header\"><div><h1>Reports</h1><p class=\"muted\">Leaderboard and class-wise academic performance.</p></div></section>" +
+    "<section class=\"section-header\">" +
+    "<div><h1>Reports & Feedback</h1><p class=\"muted\">Leaderboard, monitor class-wise progress, and provide feedback.</p></div>" +
+    "<div class=\"button-row\">" +
+    "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"csv\" data-iqac-scope=\"institution\">Export CSV</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"pdf\" data-iqac-scope=\"institution\">Export PDF</button>" +
+    "</div>" +
+    "</section>" +
     "<section class=\"panel\"><h3>Class Leaderboard</h3><div class=\"leaderboard\">" + leaderboardRows + "</div></section>" +
-    "<section class=\"panel\"><h3>Performance Table</h3><div class=\"table-wrap\"><table><thead><tr><th>Class</th><th>Total Score</th><th>Normalized</th><th>Percentile</th><th>Grade</th></tr></thead><tbody>" + tableRows + "</tbody></table></div></section>"
+    "<section class=\"panel\"><h3>Class-wise Progress & Feedback</h3><div class=\"table-wrap\"><table><thead><tr><th>Class</th><th>Total Score</th><th>Normalized</th><th>Percentile</th><th>Grade</th><th>Action</th></tr></thead><tbody>" + tableRows + "</tbody></table></div></section>"
   );
+}
+
+function getHodDepartment() {
+  const user = findUserById(state.currentUserId);
+  return user ? user.department : null;
+}
+
+function getClassesForDepartment(department) {
+  if (!department) {
+    return [];
+  }
+
+  return students
+    .filter((student) => getDepartmentByClassName(student.className) === department)
+    .map((student) => student.className)
+    .filter((className, index, list) => list.indexOf(className) === index)
+    .sort();
+}
+
+function renderHodDepartmentSection() {
+  const department = getHodDepartment();
+  if (!department) {
+    return "<section class=\"panel\"><p class=\"empty-state\">No department assigned.</p></section>";
+  }
+
+  const deptClasses = getClassesForDepartment(department);
+
+  const classRecords = deptClasses.map((className) => {
+    const classStudents = students.filter((s) => s.className === className);
+    const classSubmissions = submissions.filter((sub) => {
+      const student = getStudentById(sub.studentId);
+      return student && student.className === className;
+    });
+    const scored = classSubmissions.filter((s) => isSubmissionScored(s)).length;
+    const total = classStudents.length > 0 ? classStudents.length * 5 : 1;
+    return {
+      name: className,
+      total: total,
+      scored: scored,
+      percent: Math.round((scored / total) * 100)
+    };
+  });
+
+  const searchQuery = normalizeFilterText(state.listViews.hodClasses.search);
+  const filteredRecords = classRecords.filter((record) => {
+    if (!searchQuery) {
+      return true;
+    }
+    return normalizeFilterText(record.name).indexOf(searchQuery) > -1;
+  });
+
+  const pageInfo = paginateListItems(filteredRecords, state.listViews.hodClasses.currentPage, listPageSize);
+  const classRows = pageInfo.items.length
+    ? pageInfo.items.map((record) => {
+        return (
+          "<div class=\"eval-list-row\" data-hod-class-row=\"" + escapeAttribute(record.name) + "\">" +
+          "<div class=\"eval-row-main\"><strong>" + escapeHtml(record.name) + "</strong><p class=\"muted\" style=\"font-size:0.85rem; margin-top:4px;\">" + record.scored + " / " + record.total + " scored</p></div>" +
+          "<div class=\"eval-row-progress\"><span class=\"muted\" style=\"font-size:0.85rem; margin-right:12px;\">" + record.percent + "%</span><div class=\"eval-progress-bar\"><div style=\"width: " + record.percent + "%\"></div></div></div>" +
+          "<div class=\"eval-row-arrow\">›</div>" +
+          "</div>"
+        );
+      }).join("")
+    : "<p class=\"empty-state\">No classes match your search.</p>";
+
+  const searchValue = escapeAttribute(state.listViews.hodClasses.search);
+
+  return (
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\"><h3>Classes in " + escapeHtml(department) + "</h3>" +
+    "<div class=\"button-row\">" +
+    "<button type=\"button\" class=\"btn ghost\" data-hod-export=\"csv\" data-hod-scope=\"department\">Export CSV</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-hod-export=\"pdf\" data-hod-scope=\"department\">Export PDF</button>" +
+    "</div>" +
+    "</div>" +
+    "<div class=\"list-toolbar\">" +
+    "<div class=\"field\"><label for=\"hod-class-search\">Search class</label><input id=\"hod-class-search\" type=\"search\" placeholder=\"Search class\" value=\"" + searchValue + "\" data-list-target=\"hod-classes\" data-list-filter=\"search\" /></div>" +
+    "</div>" +
+    "<div class=\"eval-list-container\">" + classRows + "</div>" +
+    renderPaginationControls("hod-department-list", pageInfo) +
+    "</section>"
+  );
+}
+
+function renderHodClassDetails() {
+  if (!state.hodSelectedClass) {
+    return "<section class=\"panel\"><p class=\"empty-state\">No class selected.</p></section>";
+  }
+
+  const className = state.hodSelectedClass;
+  const classStudents = students.filter((s) => s.className === className);
+  const classSubmissions = submissions.filter((sub) => {
+    const student = getStudentById(sub.studentId);
+    return student && student.className === className;
+  });
+
+  const studentRecords = classStudents.map((student) => {
+    const studentSubmissions = classSubmissions.filter((s) => s.studentId === student.id);
+    const scored = studentSubmissions.filter((s) => isSubmissionScored(s)).length;
+    const total = studentSubmissions.length || 5;
+    return {
+      id: student.id,
+      name: student.name,
+      total: total,
+      scored: scored,
+      percent: Math.round((scored / total) * 100),
+      status: scored > 0 ? "In Progress" : "Pending"
+    };
+  });
+
+  const studentRows = studentRecords.map((record) => {
+    return (
+      "<div class=\"eval-list-row\">" +
+      "<div class=\"eval-row-main\"><strong>" + escapeHtml(record.name) + "</strong><p class=\"muted\" style=\"font-size:0.85rem; margin-top:4px;\">" + record.status + "</p></div>" +
+      "<div class=\"eval-row-progress\"><span class=\"muted\" style=\"font-size:0.85rem; margin-right:12px;\">" + record.percent + "%</span><div class=\"eval-progress-bar\"><div style=\"width: " + record.percent + "%\"></div></div></div>" +
+      "</div>"
+    );
+  }).join("");
+
+  return (
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\"><h3>" + escapeHtml(className) + " - Students</h3>" +
+    "<div class=\"button-row\">" +
+    "<button type=\"button\" class=\"btn ghost\" id=\"hod-back-to-classes\" style=\"padding:6px 12px;\">← Back</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-hod-export=\"csv\" data-hod-scope=\"class\">Export CSV</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-hod-export=\"pdf\" data-hod-scope=\"class\">Export PDF</button>" +
+    "</div>" +
+    "</div>" +
+    "<div style=\"padding:12px 0; border-bottom:1px solid var(--color-border); margin-bottom:12px;\">" +
+    "<p class=\"muted\"><strong>Total Students:</strong> " + classStudents.length + " | <strong>Completed:</strong> " + studentRecords.filter(r => r.scored > 0).length + "</p>" +
+    "</div>" +
+    "<div class=\"eval-list-container\">" + studentRows + "</div>" +
+    "</section>"
+  );
+}
+
+function renderHodDashboardPage() {
+  const department = getHodDepartment();
+  if (!department) {
+    return (
+      "<section class=\"section-header\">" +
+      "<div><h1>Department Monitoring</h1><p class=\"muted\">No department assigned to your account.</p></div>" +
+      "</section>"
+    );
+  }
+
+  if (state.hodSelectedClass) {
+    return (
+      "<section class=\"section-header\">" +
+      "<div><h1>" + escapeHtml(department) + " Department</h1><p class=\"muted\">Monitor classes and completion status in your department.</p></div>" +
+      "</section>" +
+      renderHodClassDetails()
+    );
+  }
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div><h1>" + escapeHtml(department) + " Department</h1><p class=\"muted\">Monitor classes and completion status in your department.</p></div>" +
+    "</section>" +
+    renderHodDepartmentSection()
+  );
+}
+
+function renderHodFeedbackPage() {
+  const department = getHodDepartment();
+  if (!department) {
+    return (
+      "<section class=\"section-header\">" +
+      "<div><h1>Department Feedback</h1><p class=\"muted\">No department assigned to your account.</p></div>" +
+      "</section>" +
+      "<section class=\"panel\"><p class=\"empty-state\">Please contact admin to assign a department.</p></section>"
+    );
+  }
+
+  const classOptions = getClassesForDepartment(department);
+  const targetOptions = ["Department Summary"].concat(classOptions)
+    .map((target) => {
+      const value = target === "Department Summary" ? "__department__" : target;
+      return "<option value=\"" + escapeAttribute(value) + "\">" + escapeHtml(target) + "</option>";
+    })
+    .join("");
+
+  const entries = (state.hodFeedbackEntries || []).filter((entry) => entry.department === department);
+  const entriesHtml = entries.length
+    ? "<div class=\"simple-row-list\">" + entries.map((entry) => {
+        const when = entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "";
+        return (
+          "<div class=\"simple-row-item\">" +
+          "<div><p><strong>" + escapeHtml(entry.targetLabel) + "</strong></p><p class=\"muted\">" + escapeHtml(entry.note) + "</p></div>" +
+          "<span class=\"muted\">" + escapeHtml(when) + "</span>" +
+          "</div>"
+        );
+      }).join("") + "</div>"
+    : "<p class=\"muted\">No feedback submitted yet.</p>";
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div><h1>Department Feedback</h1><p class=\"muted\">Provide feedback on department activities.</p></div>" +
+    "</section>" +
+    "<section class=\"panel\">" +
+    "<h3>Submit Feedback</h3>" +
+    "<form id=\"hod-feedback-form\" class=\"stack-form\">" +
+    "<div class=\"field\"><label for=\"hod-feedback-target\">Target</label><select id=\"hod-feedback-target\" name=\"target\">" + targetOptions + "</select></div>" +
+    "<div class=\"field\"><label for=\"hod-feedback-note\">Feedback</label><textarea id=\"hod-feedback-note\" name=\"note\" rows=\"4\" placeholder=\"Share feedback for this department or class...\" required></textarea></div>" +
+    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">Submit Feedback</button></div>" +
+    "</form>" +
+    "</section>" +
+    "<section class=\"panel\"><h3>Submitted Feedback</h3>" + entriesHtml + "</section>"
+  );
+}
+
+function renderIqacDepartmentSection() {
+  const allDepartments = state.departments || [];
+
+  const deptRecords = allDepartments.map((dept) => {
+    const deptClasses = getClassesForDepartment(dept);
+
+    const classSubmissions = submissions.filter((sub) => {
+      const student = getStudentById(sub.studentId);
+      if (!student) return false;
+      return deptClasses.includes(student.className);
+    });
+
+    const scored = classSubmissions.filter((s) => isSubmissionScored(s)).length;
+    const total = deptClasses.length > 0 ? deptClasses.length * 5 : 1;
+    return {
+      name: dept,
+      classCount: deptClasses.length,
+      total: total,
+      scored: scored,
+      percent: Math.round((scored / total) * 100)
+    };
+  });
+
+  const searchQuery = normalizeFilterText(state.listViews.iqacDepartments.search);
+  const filteredRecords = deptRecords.filter((record) => {
+    if (!searchQuery) {
+      return true;
+    }
+    return normalizeFilterText(record.name).indexOf(searchQuery) > -1;
+  });
+
+  const pageInfo = paginateListItems(filteredRecords, state.listViews.iqacDepartments.currentPage, listPageSize);
+  const deptRows = pageInfo.items.length
+    ? pageInfo.items.map((record) => {
+        return (
+          "<div class=\"eval-list-row\" data-iqac-dept-row=\"" + escapeAttribute(record.name) + "\">" +
+          "<div class=\"eval-row-main\"><strong>" + escapeHtml(record.name) + "</strong><p class=\"muted\" style=\"font-size:0.85rem; margin-top:4px;\">" + record.classCount + " classes | " + record.scored + " / " + record.total + " scored</p></div>" +
+          "<div class=\"eval-row-progress\"><span class=\"muted\" style=\"font-size:0.85rem; margin-right:12px;\">" + record.percent + "%</span><div class=\"eval-progress-bar\"><div style=\"width: " + record.percent + "%\"></div></div></div>" +
+          "<div class=\"eval-row-arrow\">›</div>" +
+          "</div>"
+        );
+      }).join("")
+    : "<p class=\"empty-state\">No departments match your search.</p>";
+
+  const searchValue = escapeAttribute(state.listViews.iqacDepartments.search);
+
+  return (
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\"><h3>Departments Across Institution</h3>" +
+    "<div class=\"button-row\">" +
+    "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"csv\" data-iqac-scope=\"institution\">Export CSV</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"pdf\" data-iqac-scope=\"institution\">Export PDF</button>" +
+    "</div>" +
+    "</div>" +
+    "<div class=\"list-toolbar\">" +
+    "<div class=\"field\"><label for=\"iqac-dept-search\">Search department</label><input id=\"iqac-dept-search\" type=\"search\" placeholder=\"Search department\" value=\"" + searchValue + "\" data-list-target=\"iqac-departments\" data-list-filter=\"search\" /></div>" +
+    "</div>" +
+    "<div class=\"eval-list-container\">" + deptRows + "</div>" +
+    renderPaginationControls("iqac-department-list", pageInfo) +
+    "</section>"
+  );
+}
+
+function renderIqacDepartmentDetails() {
+  if (!state.iqacSelectedDepartment) {
+    return "<section class=\"panel\"><p class=\"empty-state\">No department selected.</p></section>";
+  }
+
+  const department = state.iqacSelectedDepartment;
+  const deptClasses = getClassesForDepartment(department);
+
+  const classRecords = deptClasses.map((className) => {
+    const classSubmissions = submissions.filter((sub) => {
+      const student = getStudentById(sub.studentId);
+      return student && student.className === className;
+    });
+    const scored = classSubmissions.filter((s) => isSubmissionScored(s)).length;
+    const total = classSubmissions.length || 1;
+    return {
+      name: className,
+      total: total,
+      scored: scored,
+      percent: Math.round((scored / total) * 100)
+    };
+  }).sort((a, b) => b.percent - a.percent);
+
+  const classRows = classRecords.map((record, index) => {
+    const rank = index + 1;
+    return (
+      "<div class=\"leaderboard-row\" style=\"display:grid; grid-template-columns:60px 1fr 100px; gap:12px; padding:12px; align-items:center; border-bottom:1px solid var(--color-border)\">" +
+      "<div style=\"font-weight:bold; font-size:1.1rem;\">#" + rank + "</div>" +
+      "<div><strong>" + escapeHtml(record.name) + "</strong><p class=\"muted\" style=\"font-size:0.85rem; margin-top:4px;\">" + record.scored + " / " + record.total + " scored</p></div>" +
+      "<div style=\"text-align:right;\"><span style=\"font-weight:bold; color:var(--color-primary)\">" + record.percent + "%</span></div>" +
+      "</div>"
+    );
+  }).join("");
+
+  return (
+    "<section class=\"panel\">" +
+    "<div class=\"panel-head\"><h3>" + escapeHtml(department) + " - Class Rankings</h3>" +
+    "<div class=\"button-row\">" +
+    "<button type=\"button\" class=\"btn ghost\" id=\"iqac-back-to-departments\" style=\"padding:6px 12px;\">← Back</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"csv\" data-iqac-scope=\"department\">Export CSV</button>" +
+    "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"pdf\" data-iqac-scope=\"department\">Export PDF</button>" +
+    "</div>" +
+    "</div>" +
+    "<div style=\"padding:12px 0; border-bottom:1px solid var(--color-border); margin-bottom:12px;\">" +
+    "<p class=\"muted\"><strong>Total Classes:</strong> " + deptClasses.length + "</p>" +
+    "</div>" +
+    "<div class=\"leaderboard\">" + classRows + "</div>" +
+    "</section>"
+  );
+}
+
+function renderIqacDashboardPage() {
+  if (state.iqacSelectedDepartment) {
+    return (
+      "<section class=\"section-header\">" +
+      "<div><h1>Institution Monitoring</h1><p class=\"muted\">Monitor all departments and classes across the institution.</p></div>" +
+      "</section>" +
+      renderIqacDepartmentDetails()
+    );
+  }
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div><h1>Institution Monitoring</h1><p class=\"muted\">Monitor all departments and classes across the institution.</p></div>" +
+    "</section>" +
+    renderIqacDepartmentSection()
+  );
+}
+
+function renderIqacRemarksPage() {
+  const departmentOptions = ["Institution Summary"].concat(state.departments || [])
+    .map((target) => {
+      const value = target === "Institution Summary" ? "__institution__" : target;
+      return "<option value=\"" + escapeAttribute(value) + "\">" + escapeHtml(target) + "</option>";
+    })
+    .join("");
+
+  const entries = state.iqacRemarksEntries || [];
+  const entriesHtml = entries.length
+    ? "<div class=\"simple-row-list\">" + entries.map((entry) => {
+        const when = entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "";
+        return (
+          "<div class=\"simple-row-item\">" +
+          "<div><p><strong>" + escapeHtml(entry.targetLabel) + "</strong></p><p class=\"muted\">" + escapeHtml(entry.note) + "</p></div>" +
+          "<span class=\"muted\">" + escapeHtml(when) + "</span>" +
+          "</div>"
+        );
+      }).join("") + "</div>"
+    : "<p class=\"muted\">No remarks submitted yet.</p>";
+
+  return (
+    "<section class=\"section-header\">" +
+    "<div><h1>Institutional Remarks</h1><p class=\"muted\">Provide remarks on institutional performance.</p></div>" +
+    "</section>" +
+    "<section class=\"panel\">" +
+    "<h3>Submit Remarks</h3>" +
+    "<form id=\"iqac-remarks-form\" class=\"stack-form\">" +
+    "<div class=\"field\"><label for=\"iqac-remarks-target\">Target</label><select id=\"iqac-remarks-target\" name=\"target\">" + departmentOptions + "</select></div>" +
+    "<div class=\"field\"><label for=\"iqac-remarks-note\">Remarks</label><textarea id=\"iqac-remarks-note\" name=\"note\" rows=\"4\" placeholder=\"Summarize institutional observations...\" required></textarea></div>" +
+    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">Submit Remarks</button></div>" +
+    "</form>" +
+    "</section>" +
+    "<section class=\"panel\"><h3>Remarks History</h3>" + entriesHtml + "</section>"
+  );
+}
+
+function escapeCsvValue(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (/[",\n]/.test(text)) {
+    return "\"" + text.replace(/\"/g, "\"\"") + "\"";
+  }
+  return text;
+}
+
+function buildCsvContent(rows) {
+  return rows.map((row) => row.map(escapeCsvValue).join(",")).join("\n");
+}
+
+function downloadCsvFile(filename, rows) {
+  const csvContent = buildCsvContent(rows);
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildHtmlTable(rows) {
+  if (!rows.length) {
+    return "";
+  }
+
+  const header = rows[0];
+  const bodyRows = rows.slice(1);
+  const thead = "<thead><tr>" + header.map((cell) => "<th>" + escapeHtml(cell) + "</th>").join("") + "</tr></thead>";
+  const tbody = "<tbody>" + bodyRows.map((row) => {
+    return "<tr>" + row.map((cell) => "<td>" + escapeHtml(cell) + "</td>").join("") + "</tr>";
+  }).join("") + "</tbody>";
+  return "<table>" + thead + tbody + "</table>";
+}
+
+function openPrintWindow(title, rows) {
+  const reportWindow = window.open("", "_blank");
+  if (!reportWindow) {
+    showToast("Popup blocked. Allow popups to export PDF.", "warning");
+    return;
+  }
+
+  const tableHtml = buildHtmlTable(rows);
+  const html =
+    "<!doctype html>" +
+    "<html><head><title>" + escapeHtml(title) + "</title>" +
+    "<style>body{font-family:Outfit,Segoe UI,Tahoma,sans-serif;margin:24px;color:#1a1a2e;}h1{font-size:20px;margin-bottom:16px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:left;}th{background:#fff3e6;}</style>" +
+    "</head><body><h1>" + escapeHtml(title) + "</h1>" + tableHtml + "</body></html>";
+
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+  reportWindow.focus();
+  reportWindow.setTimeout(function() {
+    reportWindow.print();
+  }, 300);
+}
+
+function slugifyExportName(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  const cleaned = raw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || "export";
+}
+
+function handleHodExport(format, scope) {
+  const department = getHodDepartment();
+  if (!department) {
+    showToast("No department assigned.", "warning");
+    return;
+  }
+
+  let rows = [];
+  let title = "";
+  let filename = "";
+
+  if (scope === "class") {
+    const className = state.hodSelectedClass;
+    if (!className) {
+      showToast("Select a class to export.", "warning");
+      return;
+    }
+
+    const classStudents = students.filter((student) => student.className === className);
+    const classSubmissions = submissions.filter((sub) => {
+      const student = getStudentById(sub.studentId);
+      return student && student.className === className;
+    });
+
+    rows = [["Student Name", "Class", "Scored", "Total", "Percent", "Status"]];
+    classStudents.forEach((student) => {
+      const studentSubmissions = classSubmissions.filter((item) => item.studentId === student.id);
+      const scored = studentSubmissions.filter((item) => isSubmissionScored(item.status)).length;
+      const total = studentSubmissions.length || 5;
+      const percent = Math.round((scored / total) * 100) + "%";
+      const status = scored > 0 ? "In Progress" : "Pending";
+      rows.push([student.name, className, String(scored), String(total), percent, status]);
+    });
+
+    title = department + " - " + className + " Students";
+    filename = "hod_" + slugifyExportName(department) + "_" + slugifyExportName(className) + ".csv";
+  } else {
+    const deptClasses = getClassesForDepartment(department);
+    rows = [["Class", "Scored", "Total", "Percent"]];
+    deptClasses.forEach((className) => {
+      const classStudents = students.filter((student) => student.className === className);
+      const classSubmissions = submissions.filter((sub) => {
+        const student = getStudentById(sub.studentId);
+        return student && student.className === className;
+      });
+      const scored = classSubmissions.filter((item) => isSubmissionScored(item.status)).length;
+      const total = classStudents.length > 0 ? classStudents.length * 5 : 1;
+      const percent = Math.round((scored / total) * 100) + "%";
+      rows.push([className, String(scored), String(total), percent]);
+    });
+
+    title = department + " Department Overview";
+    filename = "hod_" + slugifyExportName(department) + "_classes.csv";
+  }
+
+  if (!rows.length) {
+    showToast("Nothing to export.", "warning");
+    return;
+  }
+
+  if (format === "pdf") {
+    openPrintWindow(title, rows);
+  } else {
+    downloadCsvFile(filename, rows);
+  }
+}
+
+function handleIqacExport(format, scope) {
+  let rows = [];
+  let title = "";
+  let filename = "";
+
+  if (scope === "department") {
+    const department = state.iqacSelectedDepartment;
+    if (!department) {
+      showToast("Select a department to export.", "warning");
+      return;
+    }
+
+    const deptClasses = getClassesForDepartment(department);
+    rows = [["Class", "Scored", "Total", "Percent"]];
+    deptClasses.forEach((className) => {
+      const classSubmissions = submissions.filter((sub) => {
+        const student = getStudentById(sub.studentId);
+        return student && student.className === className;
+      });
+      const scored = classSubmissions.filter((item) => isSubmissionScored(item.status)).length;
+      const total = classSubmissions.length || 1;
+      const percent = Math.round((scored / total) * 100) + "%";
+      rows.push([className, String(scored), String(total), percent]);
+    });
+
+    title = department + " Department Rankings";
+    filename = "iqac_" + slugifyExportName(department) + "_classes.csv";
+  } else {
+    const departments = state.departments || [];
+    rows = [["Department", "Classes", "Scored", "Total", "Percent"]];
+    departments.forEach((department) => {
+      const deptClasses = getClassesForDepartment(department);
+      const classSubmissions = submissions.filter((sub) => {
+        const student = getStudentById(sub.studentId);
+        if (!student) return false;
+        return deptClasses.includes(student.className);
+      });
+      const scored = classSubmissions.filter((item) => isSubmissionScored(item.status)).length;
+      const total = deptClasses.length > 0 ? deptClasses.length * 5 : 1;
+      const percent = Math.round((scored / total) * 100) + "%";
+      rows.push([department, String(deptClasses.length), String(scored), String(total), percent]);
+    });
+
+    title = "Institution Overview";
+    filename = "iqac_institution_overview.csv";
+  }
+
+  if (!rows.length) {
+    showToast("Nothing to export.", "warning");
+    return;
+  }
+
+  if (format === "pdf") {
+    openPrintWindow(title, rows);
+  } else {
+    downloadCsvFile(filename, rows);
+  }
 }
 
 function handlePageClick(event) {
@@ -2368,6 +3130,38 @@ function handlePageClick(event) {
     return;
   }
   
+  const navigateBtn = event.target.closest("[data-eval-navigate]");
+  if (navigateBtn) {
+    const targetLevel = navigateBtn.dataset.evalNavigate;
+    if (navigateBtn.dataset.evalDept) {
+        state.listViews.evaluatorEvaluation.department = navigateBtn.dataset.evalDept;
+    }
+    if (navigateBtn.dataset.evalClass) {
+        state.listViews.evaluatorEvaluation.className = navigateBtn.dataset.evalClass;
+    }
+    if (navigateBtn.dataset.evalStudent) {
+        state.evaluatorSelectedStudentId = Number(navigateBtn.dataset.evalStudent);
+    }
+    state.evaluatorLevel = targetLevel;
+    refreshEvaluatorEvaluationSection();
+    return;
+  }
+  
+  const backBtn = event.target.closest("[data-evaluator-back]");
+  if (backBtn) {
+    if (state.evaluatorLevel === "submissions") {
+      state.evaluatorLevel = "students";
+    } else if (state.evaluatorLevel === "students") {
+      state.evaluatorLevel = "classes";
+      state.listViews.evaluatorEvaluation.className = allFilterValue;
+    } else if (state.evaluatorLevel === "classes") {
+      state.evaluatorLevel = "departments";
+      state.listViews.evaluatorEvaluation.department = allFilterValue;
+    }
+    refreshEvaluatorEvaluationSection();
+    return;
+  }
+  
   const viewDocButton = event.target.closest("button[data-view-doc]");
   if (viewDocButton) {
     const proofFile = viewDocButton.dataset.viewDoc;
@@ -2376,6 +3170,54 @@ function handlePageClick(event) {
     ui.confirmAccept.textContent = "Close";
     ui.confirmAccept.className = "btn ghost";
     ui.confirmCancel.classList.add("hidden");
+    return;
+  }
+
+  const hodExportButton = event.target.closest("button[data-hod-export]");
+  if (hodExportButton && state.currentRole === "hod") {
+    const format = String(hodExportButton.dataset.hodExport || "csv");
+    const scope = String(hodExportButton.dataset.hodScope || "department");
+    handleHodExport(format, scope);
+    return;
+  }
+
+  const iqacExportButton = event.target.closest("button[data-iqac-export]");
+  if (iqacExportButton && state.currentRole === "iqac") {
+    const format = String(iqacExportButton.dataset.iqacExport || "csv");
+    const scope = String(iqacExportButton.dataset.iqacScope || "institution");
+    handleIqacExport(format, scope);
+    return;
+  }
+
+  // HOD: Handle back to classes button
+  const hodBackBtn = event.target.closest("#hod-back-to-classes");
+  if (hodBackBtn && state.currentRole === "hod") {
+    state.hodSelectedClass = null;
+    renderPage();
+    return;
+  }
+
+  // HOD: Handle class row selection
+  const hodClassRow = event.target.closest("[data-hod-class-row]");
+  if (hodClassRow && state.currentRole === "hod") {
+    state.hodSelectedClass = hodClassRow.dataset.hodClassRow;
+    renderPage();
+    return;
+  }
+
+  // IQAC: Handle back to departments button
+  const iqacBackBtn = event.target.closest("#iqac-back-to-departments");
+  if (iqacBackBtn && state.currentRole === "iqac") {
+    state.iqacSelectedDepartment = null;
+    renderPage();
+    return;
+  }
+
+  // IQAC: Handle department row selection
+  const iqacDeptRow = event.target.closest("[data-iqac-dept-row]");
+  if (iqacDeptRow && state.currentRole === "iqac") {
+    state.iqacSelectedDepartment = iqacDeptRow.dataset.iqacDeptRow;
+    renderPage();
     return;
   }
 
@@ -2396,6 +3238,22 @@ function handlePageClick(event) {
   if (state.currentRole === "admin" && window.adminSettingsModule && typeof window.adminSettingsModule.handleClick === "function") {
     const handledAdminSettingsClick = window.adminSettingsModule.handleClick(event, getAdminSettingsContext());
     if (handledAdminSettingsClick) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminAcademicYearModule && typeof window.adminAcademicYearModule.handleClick === "function") {
+    const handledAcademicYearClick = window.adminAcademicYearModule.handleClick(event, {
+      state: state,
+      getActiveAcademicYear: getActiveAcademicYear,
+      setActiveAcademicYear: setActiveAcademicYear,
+      renderTopbar: renderTopbar,
+      renderPage: renderPage,
+      showToast: showToast,
+      escapeAttribute: escapeAttribute,
+      openConfirmModal: openConfirmModal
+    });
+    if (handledAcademicYearClick) {
       return;
     }
   }
@@ -2551,11 +3409,86 @@ function handlePageSubmit(event) {
     }
   }
 
+  if (state.currentRole === "admin" && window.adminAcademicYearModule && typeof window.adminAcademicYearModule.handleSubmit === "function") {
+    const handledAcademicYearSubmit = window.adminAcademicYearModule.handleSubmit(event, {
+      state: state,
+      academicYears: academicYears,
+      addAcademicYear: function(year) {
+        if (!academicYears.includes(year)) {
+          academicYears.push(year);
+          academicYears.sort().reverse();
+          state.academicYearState.push({
+            year: year,
+            isActive: false,
+            isLocked: false
+          });
+        }
+      },
+      renderPage: renderPage,
+      showToast: showToast
+    });
+    if (handledAcademicYearSubmit) {
+      return;
+    }
+  }
+
   if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleSubmit === "function") {
     const handledAdminSubmit = window.adminCriteriaModule.handleSubmit(event, getAdminCriteriaContext());
     if (handledAdminSubmit) {
       return;
     }
+  }
+
+  if (form.id === "hod-feedback-form") {
+    event.preventDefault();
+    const department = getHodDepartment();
+    if (!department) {
+      showToast("No department assigned.", "warning");
+      return;
+    }
+    const formData = new FormData(form);
+    const targetValue = String(formData.get("target") || "").trim();
+    const note = String(formData.get("note") || "").trim();
+    if (!note) {
+      showToast("Please enter feedback.", "warning");
+      return;
+    }
+    const targetLabel = targetValue === "__department__" ? "Department Summary" : targetValue;
+    state.hodFeedbackEntries.push({
+      id: Date.now(),
+      department: department,
+      target: targetValue,
+      targetLabel: targetLabel,
+      note: note,
+      createdAt: new Date().toISOString()
+    });
+    form.reset();
+    showToast("Feedback submitted.", "success");
+    renderPage();
+    return;
+  }
+
+  if (form.id === "iqac-remarks-form") {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const targetValue = String(formData.get("target") || "").trim();
+    const note = String(formData.get("note") || "").trim();
+    if (!note) {
+      showToast("Please enter remarks.", "warning");
+      return;
+    }
+    const targetLabel = targetValue === "__institution__" ? "Institution Summary" : targetValue;
+    state.iqacRemarksEntries.push({
+      id: Date.now(),
+      target: targetValue,
+      targetLabel: targetLabel,
+      note: note,
+      createdAt: new Date().toISOString()
+    });
+    form.reset();
+    showToast("Remarks submitted.", "success");
+    renderPage();
+    return;
   }
 
   if (form.id === "student-submission-form") {
@@ -2705,12 +3638,36 @@ function updateListFilterState(target, filterKey, rawValue) {
     if (safeFilterKey === "department") {
       viewState.className = allFilterValue;
       viewState.studentId = allFilterValue;
+      if (nextValue === allFilterValue) state.evaluatorLevel = "departments";
+      else state.evaluatorLevel = "classes";
     } else if (safeFilterKey === "className") {
       viewState.studentId = allFilterValue;
+      if (nextValue === allFilterValue) {
+        if (viewState.department === allFilterValue) state.evaluatorLevel = "departments";
+        else state.evaluatorLevel = "classes";
+      } else {
+        state.evaluatorLevel = "students";
+      }
     }
     viewState.pendingPage = 1;
     viewState.completedPage = 1;
     refreshEvaluatorEvaluationSection();
+    return;
+  }
+
+  if (safeTarget === "hod-classes") {
+    const viewState = state.listViews.hodClasses;
+    viewState[safeFilterKey] = nextValue;
+    viewState.currentPage = 1;
+    renderPage();
+    return;
+  }
+
+  if (safeTarget === "iqac-departments") {
+    const viewState = state.listViews.iqacDepartments;
+    viewState[safeFilterKey] = nextValue;
+    viewState.currentPage = 1;
+    renderPage();
   }
 }
 
@@ -2763,6 +3720,20 @@ function handleListPagination(button) {
     const viewState = state.listViews.evaluatorEvaluation;
     viewState.completedPage = applyPageChange(viewState.completedPage, action, pageNumber);
     refreshEvaluatorEvaluationSection();
+  }
+
+  if (target === "hod-department-list") {
+    const viewState = state.listViews.hodClasses;
+    viewState.currentPage = applyPageChange(viewState.currentPage, action, pageNumber);
+    renderPage();
+    return;
+  }
+
+  if (target === "iqac-department-list") {
+    const viewState = state.listViews.iqacDepartments;
+    viewState.currentPage = applyPageChange(viewState.currentPage, action, pageNumber);
+    renderPage();
+    return;
   }
 }
 
@@ -3530,6 +4501,9 @@ function getAdminDepartmentContext() {
     getDepartmentList: getDepartmentList,
     ensureDepartmentExists: ensureDepartmentExists,
     removeDepartment: removeDepartment,
+    getDepartmentClasses: getDepartmentClasses,
+    addDepartmentClass: addDepartmentClass,
+    removeDepartmentClass: removeDepartmentClass,
     addRecentActivity: addRecentActivity,
     escapeHtml: escapeHtml,
     escapeAttribute: escapeAttribute,
@@ -3832,7 +4806,58 @@ function removeDepartment(name) {
 
   const before = getDepartmentList().length;
   state.departments = getDepartmentList().filter((item) => normalizeDepartmentLabel(item).toLowerCase() !== normalizedTarget);
+  if (state.departmentClasses && state.departmentClasses[target]) {
+    delete state.departmentClasses[target];
+  }
   return state.departments.length !== before;
+}
+
+function getDepartmentClasses(deptName) {
+  const dept = normalizeDepartmentLabel(deptName);
+  if (!dept) return [];
+  if (!state.departmentClasses) state.departmentClasses = {};
+  if (!state.departmentClasses[dept]) state.departmentClasses[dept] = [];
+  return state.departmentClasses[dept];
+}
+
+function addDepartmentClass(deptName, className) {
+  const dept = normalizeDepartmentLabel(deptName);
+  const cls = normalizeText(className);
+  if (!dept || !cls) return false;
+  
+  if (!state.departmentClasses) state.departmentClasses = {};
+  if (!state.departmentClasses[dept]) state.departmentClasses[dept] = [];
+  
+  const normalizedCls = cls.toLowerCase();
+  if (state.departmentClasses[dept].some((c) => c.toLowerCase() === normalizedCls)) {
+    return false;
+  }
+  
+  state.departmentClasses[dept].push(cls);
+  state.departmentClasses[dept].sort((a, b) => a.localeCompare(b));
+  return true;
+}
+
+function removeDepartmentClass(deptName, className) {
+  const dept = normalizeDepartmentLabel(deptName);
+  const cls = normalizeText(className);
+  if (!dept || !cls) return false;
+  
+  if (!state.departmentClasses || !state.departmentClasses[dept]) return false;
+  
+  const normalizedCls = cls.toLowerCase();
+  
+  // Check if class is in use by any student
+  const inUse = users.some((user) => 
+    normalizeDepartmentLabel(user.department) === dept && 
+    normalizeText(user.className).toLowerCase() === normalizedCls
+  );
+  
+  if (inUse) return false;
+  
+  const before = state.departmentClasses[dept].length;
+  state.departmentClasses[dept] = state.departmentClasses[dept].filter((c) => c.toLowerCase() !== normalizedCls);
+  return state.departmentClasses[dept].length !== before;
 }
 
 function resetDemoData() {
@@ -3867,9 +4892,15 @@ function resetDemoData() {
   state.listViews = {
     studentSubmissions: createDefaultListViewState(),
     teacherVerification: createDefaultListViewState(),
-    evaluatorEvaluation: createDefaultEvaluatorListViewState()
+    evaluatorEvaluation: createDefaultEvaluatorListViewState(),
+    hodClasses: createDefaultListViewState(),
+    iqacDepartments: createDefaultListViewState()
   };
   state.adminUserListView = null;
+  state.hodSelectedClass = null;
+  state.iqacSelectedDepartment = null;
+  state.hodFeedbackEntries = [];
+  state.iqacRemarksEntries = [];
 
   const firstCategory = criteriaCatalog[0];
   const firstItem = firstCategory && firstCategory.items && firstCategory.items[0];
@@ -3925,8 +4956,96 @@ function createInitialUsers() {
       id: 1003,
       name: "Latha Nair",
       email: "latha.nair@college.edu",
-      role: "hod",
+      role: "iqac",
       department: "IQAC",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2001,
+      name: "Asha Nair",
+      email: "asha.nair@college.edu",
+      role: "hod",
+      department: "Computer Science",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2002,
+      name: "Joseph Mathew",
+      email: "joseph.mathew@college.edu",
+      role: "hod",
+      department: "Commerce",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2003,
+      name: "Leena Paul",
+      email: "leena.paul@college.edu",
+      role: "hod",
+      department: "English",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2004,
+      name: "Suresh Iyer",
+      email: "suresh.iyer@college.edu",
+      role: "hod",
+      department: "Mathematics",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2005,
+      name: "Maya Kapoor",
+      email: "maya.kapoor@college.edu",
+      role: "hod",
+      department: "Physics",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2006,
+      name: "Rohan Mehta",
+      email: "rohan.mehta@college.edu",
+      role: "hod",
+      department: "Business Administration",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2007,
+      name: "Priya Rao",
+      email: "priya.rao@college.edu",
+      role: "hod",
+      department: "Economics",
+      class: "",
+      isApproved: true,
+      status: "Active",
+      linkedStudentId: null
+    },
+    {
+      id: 2008,
+      name: "Kiran Das",
+      email: "kiran.das@college.edu",
+      role: "hod",
+      department: "Computer Applications",
       class: "",
       isApproved: true,
       status: "Active",
@@ -3966,8 +5085,11 @@ function normalizeUserRole(role) {
   if (normalized === "evaluator" || normalized === "evaluation team") {
     return "evaluator";
   }
-  if (normalized === "hod" || normalized === "iqac" || normalized === "hod / iqac") {
+  if (normalized === "hod" || normalized === "hod / iqac") {
     return "hod";
+  }
+  if (normalized === "iqac" || normalized === "iqac/hod") {
+    return "iqac";
   }
   if (normalized === "admin") {
     return "admin";
