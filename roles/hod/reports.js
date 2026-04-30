@@ -1,4 +1,4 @@
 window.applyPageConfig({
-  autoRole: "iqac",
-  autoPage: "reports"
+  autoRole: "hod",
+  autoPage: "feedback"
 });

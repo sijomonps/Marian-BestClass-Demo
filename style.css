@@ -1,18 +1,18 @@
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
 
 :root {
-  --color-bg: #f4f7fb;
-  --color-bg-soft: #eef2f8;
+  --color-bg: #fff6ef;
+  --color-bg-soft: #fff0e4;
   --color-surface: #ffffff;
-  --color-surface-soft: #f8fafe;
-  --color-sidebar: #0f172a;
-  --color-sidebar-muted: #94a3b8;
-  --color-sidebar-active: #1e293b;
-  --color-text: #0f172a;
-  --color-text-soft: #64748b;
-  --color-border: #dbe3ef;
-  --color-primary: #2563eb;
-  --color-primary-strong: #1d4ed8;
+  --color-surface-soft: #fffaf5;
+  --color-sidebar: #3b2314;
+  --color-sidebar-muted: #f2c4a5;
+  --color-sidebar-active: #4a2a17;
+  --color-text: #1a1a2e;
+  --color-text-soft: #6b7280;
+  --color-border: #f0d9c7;
+  --color-primary: #ff6b1a;
+  --color-primary-strong: #e85d04;
   --color-success: #16a34a;
   --color-warning: #f59e0b;
   --color-danger: #dc2626;
@@ -48,7 +48,7 @@ body {
 body {
   font-family: "Outfit", "Segoe UI", Tahoma, sans-serif;
   color: var(--color-text);
-  background: linear-gradient(180deg, #f8fbff 0%, var(--color-bg) 58%, #edf2f8 100%);
+  background: linear-gradient(180deg, #fff8f1 0%, var(--color-bg) 60%, #fef3e7 100%);
 }
 
 .hidden {
@@ -128,7 +128,7 @@ p {
   place-items: center;
   font-weight: 700;
   color: #eff6ff;
-  background: linear-gradient(145deg, #2563eb, #06b6d4);
+  background: linear-gradient(145deg, #ff8c32, #e85d04);
 }
 
 .brand h2 {
@@ -268,6 +268,12 @@ p {
   border-color: #99f6e4;
 }
 
+.role-hod {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
 .menu-toggle {
   width: 40px;
   height: 40px;
@@ -285,7 +291,7 @@ p {
 .menu-toggle span {
   width: 100%;
   height: 2px;
-  background: #334155;
+  background: var(--color-text);
 }
 
 .page-content {
@@ -861,9 +867,9 @@ p {
 }
 
 .pagination-btn.active {
-  background: #0f172a;
+  background: var(--color-primary-strong);
   color: #ffffff;
-  border-color: #0f172a;
+  border-color: var(--color-primary-strong);
 }
 
 table {
@@ -1582,6 +1588,45 @@ tbody tr:hover {
 
   .simple-vbar-track {
     height: 128px;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .button-row {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .button-row .btn {
+    flex: 1 1 160px;
+  }
+
+  .eval-list-row {
+    padding: 12px 14px;
+  }
+
+  .eval-row-main {
+    font-size: 0.98rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar-title h2 {
+    font-size: 1rem;
+  }
+
+  .page-content {
+    padding: var(--space-3);
   }
 }
 

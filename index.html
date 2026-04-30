@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Best Class Evaluation System - A smart way to track, verify and celebrate class achievements. Login to access your dashboard.">
-  <title>Best Class Evaluation System — Login</title>
+  <meta name="description" content="Best Class Evaluation System - Marian College Kuttikkanam. A smart way to track, verify and celebrate class achievements.">
+  <title>Best Class Evaluation — Marian College Kuttikkanam</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,600;1,700&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@
       font-family: 'Outfit', 'Segoe UI', Tahoma, sans-serif;
       min-height: 100vh;
       overflow: hidden;
-      background: #fafafa;
+      background: linear-gradient(140deg, #fff4ec 0%, #ffe7d6 100%);
     }
 
     /* ── CSS Variables ── */
@@ -48,12 +48,26 @@
       --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* ── Login Wrapper (Split Screen) ── */
+    /* ── Login Wrapper (Card Shell) ── */
     .login-wrapper {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       min-height: 100vh;
       width: 100%;
+      padding: 40px 24px;
+    }
+
+    .login-card-shell {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      width: min(1040px, 100%);
+      min-height: 640px;
+      background: var(--surface);
+      border-radius: 28px;
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+      position: relative;
     }
 
     /* ── Left Panel (Branding) ── */
@@ -234,8 +248,10 @@
     .mascot-container img {
       width: 100%;
       height: auto;
-      border-radius: 24px;
-      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.15));
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.18));
     }
 
     @keyframes mascotFloat {
@@ -248,8 +264,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 40px;
-      background: #f7f7f9;
+      padding: 48px 42px;
+      background: #fff7ef;
       position: relative;
       overflow: hidden;
     }
@@ -273,10 +289,10 @@
       z-index: 1;
       width: 100%;
       max-width: 420px;
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      padding: 48px 40px;
-      box-shadow: var(--shadow-card);
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
       animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -315,7 +331,7 @@
     }
 
     .card-heading h1 {
-      font-size: 1.65rem;
+      font-size: 1.55rem;
       font-weight: 700;
       color: var(--text-primary);
       margin-bottom: 6px;
@@ -524,30 +540,26 @@
 
     /* ── RESPONSIVE ── */
 
-    /* ── MOBILE: single-section compact layout ── */
-    @media (max-width: 768px) {
+    /* ── MOBILE: stack the split card ── */
+    @media (max-width: 900px) {
       body {
         overflow: auto;
-        background: linear-gradient(160deg, var(--orange-start) 0%, var(--orange-end) 100%);
       }
 
-      /* Collapse the split-screen grid into a single full-height flex column */
       .login-wrapper {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
         padding: 28px 20px 36px;
-        grid-template-columns: unset;
       }
 
-      /* ── Hide the entire branding panel (text, clouds, plants, ground) ── */
+      .login-card-shell {
+        grid-template-columns: 1fr;
+        min-height: unset;
+        border-radius: 22px;
+      }
+
       .login-branding {
-        display: contents; /* still renders children we need, but contributes no box */
+        display: contents;
       }
 
-      /* Hide all branding decorations & text — we only keep the mascot img */
       .sparkle,
       .cloud,
       .ground-curve,
@@ -556,106 +568,26 @@
         display: none !important;
       }
 
-      /* Mascot: small icon at the top of the form */
       .mascot-container {
         position: static;
-        width: 90px;
-        height: 90px;
-        margin: 0 auto 16px;
-        animation: mascotFloat 4s ease-in-out infinite;
-        flex-shrink: 0;
+        width: 140px;
+        margin: 0 auto 18px;
       }
 
-      .mascot-container img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 18px;
-        filter: drop-shadow(0 6px 16px rgba(0,0,0,0.18));
-      }
-
-      /* ── Login panel: no background, no padding wrapper ── */
       .login-panel {
-        width: 100%;
-        max-width: 380px;
-        padding: 0;
-        background: transparent;
-        position: static;
+        padding: 36px 28px 40px;
       }
 
-      .login-panel::before {
-        display: none;
+      .branding-title {
+        font-size: clamp(1.8rem, 6vw, 2.2rem);
       }
 
-      /* ── Card: clean white pill, compact ── */
-      .login-card {
-        width: 100%;
-        max-width: 380px;
-        padding: 28px 24px 24px;
-        border-radius: 20px;
-        margin-top: 0;
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.1);
-        animation: cardSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      /* Hide the graduation cap card icon (mascot replaces it) */
       .card-icon {
-        display: none;
+        margin-bottom: 18px;
       }
 
-      /* Hide "Welcome Back!" — show only the subtitle as a small hint */
-      .card-heading h1 {
-        display: none;
-      }
-
-      /* Repurpose the heading block to show the system title */
       .card-heading {
-        margin-bottom: 20px;
-      }
-
-      /* Show system title above the form via a pseudo-generated content trick
-         — we inject the title text using a CSS counter/attr approach via
-         the ::before on .card-heading, styled as a bold heading */
-      .card-heading::before {
-        content: 'Best Class Evaluation System';
-        display: block;
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin-bottom: 4px;
-        line-height: 1.25;
-      }
-
-      .card-heading p {
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-      }
-
-      /* Compact form spacing */
-      .form-group {
-        margin-bottom: 14px;
-      }
-
-      .form-group label {
-        font-size: 0.82rem;
-        margin-bottom: 6px;
-      }
-
-      .select-wrapper select {
-        padding: 12px 40px 12px 40px;
-        font-size: 0.92rem;
-        border-radius: 10px;
-      }
-
-      .btn-continue {
-        padding: 13px 20px;
-        font-size: 0.95rem;
-        border-radius: 10px;
-      }
-
-      /* Compact accent */
-      .card-accent {
-        margin-top: 18px;
+        margin-bottom: 24px;
       }
     }
 
@@ -665,18 +597,12 @@
         padding: 20px 16px 28px;
       }
 
-      .mascot-container {
-        width: 76px;
-        height: 76px;
-        margin-bottom: 12px;
+      .login-branding {
+        padding: 32px 22px 36px;
       }
 
-      .login-card {
-        padding: 24px 18px 20px;
-      }
-
-      .card-heading::before {
-        font-size: 1rem;
+      .login-panel {
+        padding: 28px 20px 32px;
       }
     }
   </style>
@@ -684,6 +610,7 @@
 <body>
 
   <div class="login-wrapper" id="login-wrapper">
+    <div class="login-card-shell">
 
     <!-- ═══ LEFT: Branding Panel ═══ -->
     <div class="login-branding">
@@ -714,9 +641,9 @@
 
       <!-- Text Content -->
       <div class="branding-content">
-        <h1 class="branding-title">Best Class<br>Evaluation System</h1>
-        <p class="branding-subtitle">Recognize. Evaluate. Excel Together.</p>
-        <p class="branding-description">A smart way to track, verify and celebrate class achievements.</p>
+        <h1 class="branding-title">Best Class Evaluation</h1>
+        <p class="branding-subtitle">Marian College, Kuttikkanam</p>
+        <p class="branding-description">A smart way to track, verify, and celebrate class achievements across Marian College Kuttikkanam.</p>
         <p class="branding-tagline">Simple. Smart. Effective.</p>
       </div>
 
@@ -740,8 +667,8 @@
 
         <!-- Heading -->
         <div class="card-heading">
-          <h1>Welcome Back!</h1>
-          <p>Select your role to continue</p>
+          <h1>Sign in</h1>
+          <p>Best Class Evaluation · Marian College Kuttikkanam</p>
         </div>
 
         <!-- Error Alert -->
@@ -788,6 +715,7 @@
       </div>
     </div>
 
+    </div>
   </div>
 
   <script>

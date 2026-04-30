@@ -24,16 +24,21 @@
       dashboard: getAppRoute("roles/evaluator/evaluation-dashboard.html"),
       evaluation: getAppRoute("roles/evaluator/evaluation.html")
     },
+    hod: {
+      dashboard: getAppRoute("roles/hod/hod-dashboard.html"),
+      feedback: getAppRoute("roles/hod/reports.html")
+    },
+    iqac: {
+      dashboard: getAppRoute("roles/iqac/iqac-dashboard.html"),
+      reports: getAppRoute("roles/iqac/iqac-dashboard.html"),
+      remarks: getAppRoute("roles/iqac/iqac-dashboard.html")
+    },
     admin: {
       dashboard: getAppRoute("roles/admin/admin-dashboard.html"),
       criteria: getAppRoute("roles/admin/criteria-management.html"),
       users: getAppRoute("roles/admin/user-management.html"),
       departments: getAppRoute("roles/admin/department-management.html"),
       settings: getAppRoute("roles/admin/settings.html")
-    },
-    iqac: {
-      dashboard: getAppRoute("roles/iqac/iqac-dashboard.html"),
-      reports: getAppRoute("roles/hod/reports.html")
     }
   };
 
