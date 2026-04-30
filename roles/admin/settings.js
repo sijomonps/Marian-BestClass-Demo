@@ -26,7 +26,7 @@ window.applyPageConfig({
       "<article class=\"panel\"><h3>Evaluation Status</h3><p><span class=\"status-pill " + evaluationClass + "\">" + (ctx.state.evaluationOpen ? "ON" : "OFF") + "</span></p><div class=\"button-row\"><button type=\"button\" class=\"btn ghost\" data-settings-action=\"toggle-evaluation\">Toggle Evaluation</button></div></article>" +
       "</section>" +
       "<section class=\"cards-grid two-panel-grid\">" +
-      "<article class=\"panel\"><h3>Academic Year</h3><div class=\"field\"><label for=\"admin-settings-year-select\">Select Academic Year</label><select id=\"admin-settings-year-select\">" + yearOptions + "</select></div><div class=\"meta-list\"><p><strong>Active Year:</strong> " + (activeYear ? activeYear : "None") + "</p><p><strong>Viewing Year:</strong> " + selectedYear + "</p></div><div class=\"button-row\"><button type=\"button\" class=\"btn primary\" data-settings-action=\"activate-selected-year\">Set Selected Year Active</button></div></article>" +
+      "<article class=\"panel\"><h3>Academic Year</h3><div class=\"meta-list\"><p><strong>Active Year:</strong> " + (activeYear ? activeYear : "None") + "</p></div><p class=\"muted\">Manage academic years in the Academic Years module.</p></article>" +
       "<article class=\"panel\"><h3>Reset Demo Data</h3><p class=\"muted\">This restores criteria, users, submissions, years, and status toggles to initial seed data.</p><div class=\"button-row\"><button type=\"button\" class=\"btn danger\" data-settings-action=\"reset-demo\">Reset Demo Data</button></div></article>" +
       "</section>"
     );
@@ -56,20 +56,6 @@ window.applyPageConfig({
       return true;
     }
 
-    if (action === "activate-selected-year") {
-      const selectedYear = String(ctx.state.selectedAcademicYear || "");
-      if (!selectedYear) {
-        ctx.showToast("Select an academic year first.", "warning");
-        return true;
-      }
-
-      ctx.setActiveAcademicYear(selectedYear);
-      ctx.addRecentActivity("Activated academic year: " + selectedYear);
-      ctx.showToast("Academic year " + selectedYear + " is now active.", "success");
-      ctx.renderTopbar();
-      ctx.renderPage();
-      return true;
-    }
 
     if (action === "reset-demo") {
       ctx.openConfirmModal("Reset Demo Data", "Reset all demo data to initial state?", function () {
@@ -88,14 +74,6 @@ window.applyPageConfig({
   function handleChange(event, ctx) {
     const target = event.target;
 
-    if (target.id === "admin-settings-year-select") {
-      const year = String(target.value || "");
-      ctx.setSelectedAcademicYear(year);
-      ctx.renderTopbar();
-      ctx.renderPage();
-      ctx.showToast("Viewing academic year " + year + ".", "info");
-      return true;
-    }
 
     return false;
   }

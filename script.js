@@ -29,7 +29,7 @@ const roleConfig = {
     label: "Admin",
     heading: "Admin Workspace",
     menu: [
-      { page: "dashboard", label: "Dashboard", icon: "📊" },
+      { page: "academic-years", label: "Academic Years", icon: "📅" },
       { page: "criteria", label: "Criteria Management", icon: "⚙️" },
       { page: "users", label: "User Management", icon: "👥" },
       { page: "departments", label: "Department Management", icon: "🏛️" },
@@ -957,7 +957,7 @@ function renderPage() {
     } else if (state.activePage === "settings") {
       content = renderAdminSettingsPage();
     } else {
-      content = renderAdminDashboard();
+      content = renderAdminAcademicYearPage();
     }
   } else {
     content = state.activePage === "reports" ? renderHodReportsPage() : renderHodDashboard();
@@ -1284,10 +1284,12 @@ function renderStudentSubmitPage() {
 }
 
 function renderCriteriaRuleCard(criteriaItem) {
+  const descriptionHtml = criteriaItem.description ? "<p class=\"muted\" style=\"margin-top: 8px; color: var(--color-text-soft); font-style: italic;\">" + escapeHtml(criteriaItem.description) + "</p>" : "";
   return (
     "<div class=\"criteria-rule-card full-span\">" +
     "<div><span class=\"criteria-chip\">" + escapeHtml(getCriteriaTypeLabel(criteriaItem.type)) + "</span><h3>" + escapeHtml(criteriaItem.title) + "</h3></div>" +
     "<p>" + escapeHtml(getCriteriaRuleSummary(criteriaItem)) + "</p>" +
+    descriptionHtml +
     "</div>"
   );
 }
@@ -2066,33 +2068,34 @@ function refreshEvaluatorEvaluationSection() {
   }
   root.innerHTML = renderEvaluatorEvaluationSection();
 }
-function renderAdminDashboard() {
-  if (window.adminDashboardModule && typeof window.adminDashboardModule.renderDashboard === "function") {
-    return window.adminDashboardModule.renderDashboard({
+function renderAdminAcademicYearPage() {
+  if (window.adminAcademicYearModule && typeof window.adminAcademicYearModule.renderPage === "function") {
+    return window.adminAcademicYearModule.renderPage({
       state: state,
       academicYears: academicYears,
-      submissions: submissions,
-      getSubmissionsForYear: getSubmissionsForYear,
-      students: students,
-      criteriaCatalog: criteriaCatalog,
-      buildSummaryMetrics: buildSummaryMetrics,
-      buildClassPerformance: buildClassPerformance,
       getActiveAcademicYear: getActiveAcademicYear,
-      getAllCriteriaItems: getAllCriteriaItems,
-      getSystemModeStatusClass: getSystemModeStatusClass,
-      getSystemModeLabel: getSystemModeLabel,
-      renderDashboardCards: renderDashboardCards,
-      renderStatusProgress: renderStatusProgress,
-      escapeHtml: escapeHtml
+      setActiveAcademicYear: setActiveAcademicYear,
+      addAcademicYear: function(year) {
+        if (!academicYears.includes(year)) {
+          academicYears.push(year);
+          academicYears.sort().reverse();
+          state.academicYearState.push({
+            year: year,
+            isActive: false,
+            isLocked: false
+          });
+        }
+      },
+      renderTopbar: renderTopbar,
+      renderPage: renderPage,
+      showToast: showToast,
+      escapeHtml: escapeHtml,
+      escapeAttribute: escapeAttribute,
+      openConfirmModal: openConfirmModal
     });
   }
 
-  const metrics = buildSummaryMetrics(submissions);
-  return (
-    "<section class=\"section-header\"><div><h1>Admin Dashboard</h1><p class=\"muted\">Overview of criteria, submissions, and yearly setup.</p></div></section>" +
-    renderDashboardCards(metrics) +
-    renderStatusProgress("Workflow Status", metrics)
-  );
+  return "<p>Module not loaded.</p>";
 }
 
 function renderAdminCriteriaPage() {
@@ -2369,6 +2372,22 @@ function handlePageClick(event) {
     }
   }
 
+  if (state.currentRole === "admin" && window.adminAcademicYearModule && typeof window.adminAcademicYearModule.handleClick === "function") {
+    const handledAcademicYearClick = window.adminAcademicYearModule.handleClick(event, {
+      state: state,
+      getActiveAcademicYear: getActiveAcademicYear,
+      setActiveAcademicYear: setActiveAcademicYear,
+      renderTopbar: renderTopbar,
+      renderPage: renderPage,
+      showToast: showToast,
+      escapeAttribute: escapeAttribute,
+      openConfirmModal: openConfirmModal
+    });
+    if (handledAcademicYearClick) {
+      return;
+    }
+  }
+
   if (state.currentRole === "admin" && window.adminCriteriaModule && typeof window.adminCriteriaModule.handleClick === "function") {
     const handledAdminClick = window.adminCriteriaModule.handleClick(event, getAdminCriteriaContext());
     if (handledAdminClick) {
@@ -2505,6 +2524,29 @@ function handlePageSubmit(event) {
   if (state.currentRole === "admin" && window.adminSettingsModule && typeof window.adminSettingsModule.handleSubmit === "function") {
     const handledAdminSettingsSubmit = window.adminSettingsModule.handleSubmit(event, getAdminSettingsContext());
     if (handledAdminSettingsSubmit) {
+      return;
+    }
+  }
+
+  if (state.currentRole === "admin" && window.adminAcademicYearModule && typeof window.adminAcademicYearModule.handleSubmit === "function") {
+    const handledAcademicYearSubmit = window.adminAcademicYearModule.handleSubmit(event, {
+      state: state,
+      academicYears: academicYears,
+      addAcademicYear: function(year) {
+        if (!academicYears.includes(year)) {
+          academicYears.push(year);
+          academicYears.sort().reverse();
+          state.academicYearState.push({
+            year: year,
+            isActive: false,
+            isLocked: false
+          });
+        }
+      },
+      renderPage: renderPage,
+      showToast: showToast
+    });
+    if (handledAcademicYearSubmit) {
       return;
     }
   }
@@ -3468,6 +3510,9 @@ function getAdminDepartmentContext() {
     getDepartmentList: getDepartmentList,
     ensureDepartmentExists: ensureDepartmentExists,
     removeDepartment: removeDepartment,
+    getDepartmentClasses: getDepartmentClasses,
+    addDepartmentClass: addDepartmentClass,
+    removeDepartmentClass: removeDepartmentClass,
     addRecentActivity: addRecentActivity,
     escapeHtml: escapeHtml,
     escapeAttribute: escapeAttribute,
@@ -3770,7 +3815,58 @@ function removeDepartment(name) {
 
   const before = getDepartmentList().length;
   state.departments = getDepartmentList().filter((item) => normalizeDepartmentLabel(item).toLowerCase() !== normalizedTarget);
+  if (state.departmentClasses && state.departmentClasses[target]) {
+    delete state.departmentClasses[target];
+  }
   return state.departments.length !== before;
+}
+
+function getDepartmentClasses(deptName) {
+  const dept = normalizeDepartmentLabel(deptName);
+  if (!dept) return [];
+  if (!state.departmentClasses) state.departmentClasses = {};
+  if (!state.departmentClasses[dept]) state.departmentClasses[dept] = [];
+  return state.departmentClasses[dept];
+}
+
+function addDepartmentClass(deptName, className) {
+  const dept = normalizeDepartmentLabel(deptName);
+  const cls = normalizeText(className);
+  if (!dept || !cls) return false;
+  
+  if (!state.departmentClasses) state.departmentClasses = {};
+  if (!state.departmentClasses[dept]) state.departmentClasses[dept] = [];
+  
+  const normalizedCls = cls.toLowerCase();
+  if (state.departmentClasses[dept].some((c) => c.toLowerCase() === normalizedCls)) {
+    return false;
+  }
+  
+  state.departmentClasses[dept].push(cls);
+  state.departmentClasses[dept].sort((a, b) => a.localeCompare(b));
+  return true;
+}
+
+function removeDepartmentClass(deptName, className) {
+  const dept = normalizeDepartmentLabel(deptName);
+  const cls = normalizeText(className);
+  if (!dept || !cls) return false;
+  
+  if (!state.departmentClasses || !state.departmentClasses[dept]) return false;
+  
+  const normalizedCls = cls.toLowerCase();
+  
+  // Check if class is in use by any student
+  const inUse = users.some((user) => 
+    normalizeDepartmentLabel(user.department) === dept && 
+    normalizeText(user.className).toLowerCase() === normalizedCls
+  );
+  
+  if (inUse) return false;
+  
+  const before = state.departmentClasses[dept].length;
+  state.departmentClasses[dept] = state.departmentClasses[dept].filter((c) => c.toLowerCase() !== normalizedCls);
+  return state.departmentClasses[dept].length !== before;
 }
 
 function resetDemoData() {
