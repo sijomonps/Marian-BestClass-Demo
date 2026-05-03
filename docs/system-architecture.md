@@ -2,7 +2,7 @@
 
 ## High-Level Flow
 
-1. Admin defines criteria
+1. Admin defines criteria.
 2. Student submits activity
 3. Teacher verifies submission
 4. Evaluator verifies and assigns marks
