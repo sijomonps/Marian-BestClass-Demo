@@ -1025,8 +1025,8 @@ function renderDashboardCards(metrics) {
 
   const cards = [
     { key: "total", icon: "📊", label: "Total Submissions", value: metrics.total },
-    { key: "approved", icon: "✔", label: "Scored", value: metrics.approved },
-    { key: "pending", icon: "⏳", label: "Queue", value: metrics.pending },
+    { key: "approved", icon: "✔", label: "Verified", value: metrics.approved },
+    { key: "pending", icon: "⏳", label: "Pending", value: metrics.pending },
     {
       key: "score",
       icon: "📈",
@@ -1058,7 +1058,7 @@ function renderDashboardCards(metrics) {
 function renderStatusProgress(title, counts) {
   const total = Math.max(1, counts.total);
   const rows = [
-    { key: "Scored", value: counts.approved, className: "progress-approved" },
+    { key: "Verified", value: counts.approved, className: "progress-approved" },
     { key: "Submitted / Draft", value: counts.pending, className: "progress-pending" },
     { key: "Rejected", value: counts.rejected, className: "progress-rejected" },
     { key: "Correction", value: counts.correction, className: "progress-correction" }
