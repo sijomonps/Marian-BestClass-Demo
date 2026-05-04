@@ -151,6 +151,8 @@ const state = {
   academicYearState: createAcademicYearState(academicYears, academicYears[0]),
   activeAcademicYear: academicYears[0],
   submissionOpen: true,
+  submissionStartTime: "",
+  submissionEndTime: "",
   evaluationOpen: true,
   systemMode: "setup",
   criteriaLastUpdatedAt: null,
@@ -216,7 +218,45 @@ function normalizeAppPageConfig(config) {
   };
 }
 
+function persistState() {
+  const data = {
+    submissionOpen: state.submissionOpen,
+    submissionStartTime: state.submissionStartTime,
+    submissionEndTime: state.submissionEndTime,
+    evaluationOpen: state.evaluationOpen,
+    submissions: submissions,
+    users: users,
+    criteriaCatalog: criteriaCatalog,
+    academicYears: academicYears,
+    activeAcademicYear: state.activeAcademicYear
+  };
+  localStorage.setItem("bc_persistent_state", JSON.stringify(data));
+}
+
+function loadPersistedState() {
+  const saved = localStorage.getItem("bc_persistent_state");
+  if (!saved) return;
+  try {
+    const data = JSON.parse(saved);
+    state.submissionOpen = data.submissionOpen !== undefined ? data.submissionOpen : state.submissionOpen;
+    state.submissionStartTime = data.submissionStartTime || "";
+    state.submissionEndTime = data.submissionEndTime || "";
+    state.evaluationOpen = data.evaluationOpen !== undefined ? data.evaluationOpen : state.evaluationOpen;
+    if (data.submissions) submissions = data.submissions;
+    if (data.users) users = data.users;
+    if (data.criteriaCatalog) criteriaCatalog = data.criteriaCatalog;
+    if (data.academicYears) academicYears = data.academicYears;
+    if (data.activeAcademicYear) {
+      state.activeAcademicYear = data.activeAcademicYear;
+      state.selectedAcademicYear = data.activeAcademicYear;
+    }
+  } catch (e) {
+    console.error("Failed to load persisted state", e);
+  }
+}
+
 function init() {
+  loadPersistedState();
   if (!criteriaCatalog.length) {
     criteriaCatalog = getDefaultCriteriaCatalog();
   }
@@ -1313,11 +1353,28 @@ function renderStudentSubmitPage() {
   const cancelEditButton = editingSubmission
     ? "<button type=\"button\" class=\"btn ghost\" data-cancel-submission-edit=\"true\">Cancel Edit</button>"
     : "";
+  var windowCheck = isSubmissionWithinTimeWindow();
+  var timeWindowBanner = "";
+  if (!windowCheck.allowed) {
+    timeWindowBanner = "<section class=\"panel\" style=\"border-left:4px solid var(--danger);background:rgba(239,68,68,0.08)\"><p style=\"margin:0;color:var(--danger);font-weight:600\">⚠ " + escapeHtml(windowCheck.reason) + "</p></section>";
+  } else {
+    var startStr = state.submissionStartTime ? new Date(state.submissionStartTime).toLocaleString() : "";
+    var endStr = state.submissionEndTime ? new Date(state.submissionEndTime).toLocaleString() : "";
+    if (startStr || endStr) {
+      var windowInfo = "Submission window: ";
+      if (startStr) { windowInfo += "Opens " + startStr; }
+      if (startStr && endStr) { windowInfo += " — "; }
+      if (endStr) { windowInfo += "Closes " + endStr; }
+      timeWindowBanner = "<section class=\"panel\" style=\"border-left:4px solid var(--accent);background:rgba(99,102,241,0.06)\"><p style=\"margin:0;color:var(--accent);font-weight:500\">🕐 " + escapeHtml(windowInfo) + "</p></section>";
+    }
+  }
+  var formDisabledAttr = !windowCheck.allowed ? " style=\"opacity:0.5;pointer-events:none\"" : "";
   return (
     "<section class=\"section-header\">" +
     "<div><h1>" + title + "</h1></div>" +
     "</section>" +
-    "<section class=\"panel\">" +
+    timeWindowBanner +
+    "<section class=\"panel\"" + formDisabledAttr + ">" +
     "<form id=\"student-submission-form\" class=\"stack-form two-col\">" +
     "<div class=\"field\"><label for=\"submission-category\">Category</label><select id=\"submission-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div>" +
     "<div class=\"field\"><label for=\"submission-criteria\">Item</label><select id=\"submission-criteria\" name=\"criteriaId\" required>" + itemOptions + "</select></div>" +
@@ -3852,9 +3909,26 @@ function runPageRenderHooks() {
   }
 }
 
-function submitStudentSubmission(form) {
+function isSubmissionWithinTimeWindow() {
   if (!state.submissionOpen) {
-    showToast("Submission is currently OFF. Contact admin.", "warning");
+    return { allowed: false, reason: "Submission is currently OFF. Contact admin." };
+  }
+  var startTime = state.submissionStartTime ? new Date(state.submissionStartTime) : null;
+  var endTime = state.submissionEndTime ? new Date(state.submissionEndTime) : null;
+  var now = new Date();
+  if (startTime && now < startTime) {
+    return { allowed: false, reason: "Submission window has not started yet. Opens on " + startTime.toLocaleString() + "." };
+  }
+  if (endTime && now > endTime) {
+    return { allowed: false, reason: "Submission window has closed. Deadline was " + endTime.toLocaleString() + "." };
+  }
+  return { allowed: true, reason: "" };
+}
+
+function submitStudentSubmission(form) {
+  var windowCheck = isSubmissionWithinTimeWindow();
+  if (!windowCheck.allowed) {
+    showToast(windowCheck.reason, "warning");
     return;
   }
 
@@ -3938,6 +4012,7 @@ function submitStudentSubmission(form) {
     state.editingSubmissionId = null;
     form.reset();
     showToast(targetStatus === workflowStatus.DRAFT ? "Draft updated." : "Submission re-submitted for verification.", "success");
+    persistState();
     renderPage();
     return;
   }
@@ -3975,6 +4050,7 @@ function submitStudentSubmission(form) {
 
   form.reset();
   showToast(targetStatus === workflowStatus.DRAFT ? "Draft saved." : "Submission sent for verification.", "success");
+  persistState();
   renderPage();
 }
 
@@ -4597,7 +4673,8 @@ function getAdminSettingsContext() {
     showToast: showToast,
     openConfirmModal: openConfirmModal,
     renderTopbar: renderTopbar,
-    renderPage: renderPage
+    renderPage: renderPage,
+    persistState: persistState
   };
 }
 
@@ -4942,7 +5019,10 @@ function resetDemoData() {
   state.academicYearState = createAcademicYearState(academicYears, state.activeAcademicYear);
   state.systemMode = "setup";
   state.submissionOpen = true;
+  state.submissionStartTime = "";
+  state.submissionEndTime = "";
   state.evaluationOpen = true;
+  localStorage.removeItem("bc_persistent_state");
 
   state.criteriaLastUpdatedAt = null;
   state.recentActivity = [];
