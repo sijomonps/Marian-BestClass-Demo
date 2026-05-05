@@ -281,6 +281,216 @@ p {
   border: 1px solid var(--color-border);
 }
 
+.page-teacher-verification .verification-list-host {
+  display: block;
+}
+
+.page-teacher-verification .verification-table {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.page-teacher-verification .verification-header {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr 1fr 1fr;
+  background: #f5f5f5;
+  padding: 12px;
+  font-weight: 700;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 12px;
+}
+
+.page-teacher-verification .verification-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr 1fr 1fr;
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-teacher-verification .verification-row:last-child {
+  border-bottom: 0;
+}
+
+.page-teacher-verification .verification-row:hover {
+  background-color: #fafafa;
+}
+
+.page-teacher-verification .verification-row .col {
+  min-width: 0;
+}
+
+.page-teacher-verification .verification-row .col.name strong {
+  display: inline-block;
+  color: var(--color-text);
+}
+
+.page-teacher-verification .verification-row .col.email .email {
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.page-teacher-verification .verification-row .col.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.page-teacher-verification .verification-row .col.progress span {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+}
+
+.page-teacher-verification .progress-bar {
+  height: 6px;
+  background: #ddd;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.page-teacher-verification .progress-fill {
+  height: 100%;
+  background: #4caf50;
+}
+
+.page-teacher-verification .status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.page-teacher-verification .status.pending {
+  background: #fff3cd;
+  color: #8a6d3b;
+}
+
+.page-teacher-verification .status.completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.page-teacher-verification .status.correction {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.page-teacher-verification .col.action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.page-teacher-verification .review-btn {
+  width: auto;
+}
+
+.page-teacher-verification .submission-details {
+  background: #fafafa;
+  padding: 10px 15px;
+  border-left: 3px solid #4caf50;
+  border-bottom: 1px solid #eee;
+}
+
+.page-teacher-verification .submission-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.page-teacher-verification .submission-header,
+.page-teacher-verification .submission-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 2fr;
+  padding: 8px 0;
+  gap: 12px;
+  align-items: start;
+}
+
+.page-teacher-verification .submission-header {
+  font-weight: 700;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.page-teacher-verification .submission-row {
+  border-bottom: 1px solid #eceff3;
+}
+
+.page-teacher-verification .submission-row:last-child {
+  border-bottom: 0;
+}
+
+.page-teacher-verification .submission-row .submission-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.page-teacher-verification .submission-row .button-row {
+  margin-top: 0 !important;
+}
+
+.page-teacher-verification .hidden {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .page-teacher-verification .verification-header {
+    display: none;
+  }
+
+  .page-teacher-verification .verification-table {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .page-teacher-verification .verification-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    border: 1px solid #eee;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .page-teacher-verification .verification-row .col::before {
+    content: attr(data-col-label);
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--color-text-soft);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .page-teacher-verification .submission-details {
+    border: 1px solid #eee;
+    border-left: 3px solid #4caf50;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+
+  .page-teacher-verification .submission-header {
+    display: none;
+  }
+
+  .page-teacher-verification .submission-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px 0;
+  }
+}
+
 /* Tool Bar */
 .tool-bar {
   display: flex;
