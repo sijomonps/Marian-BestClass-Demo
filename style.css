@@ -33,6 +33,9 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --motion-fast: 0.3s;
+  --motion-medium: 0.45s;
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -162,18 +165,26 @@ p {
   align-items: center;
   gap: 0.65rem;
   cursor: pointer;
-  transition: 0.22s ease;
+  opacity: 0.92;
+  transition: background var(--motion-fast) var(--ease-smooth),
+    color var(--motion-fast) var(--ease-smooth),
+    transform var(--motion-fast) var(--ease-smooth),
+    opacity var(--motion-fast) var(--ease-smooth),
+    border-color var(--motion-fast) var(--ease-smooth);
 }
 
 .nav-item:hover {
   background: rgba(148, 163, 184, 0.14);
   color: #f8fafc;
+  opacity: 1;
+  transform: translateY(-1px);
 }
 
 .nav-item.active {
   background: var(--color-sidebar-active);
   border-color: rgba(148, 163, 184, 0.4);
   color: #f8fafc;
+  opacity: 1;
 }
 
 .nav-icon {
@@ -510,8 +521,27 @@ p {
 }
 
 .main-shell {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.main-shell::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(520px, 40%);
+  background-image: url("Assets/Images/Second-bg removed.png");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: contain;
+  opacity: 0.25;
+  pointer-events: none;
+  transform: translateX(6%);
+  z-index: 0;
 }
 
 .topbar {
@@ -609,6 +639,8 @@ p {
 
 .page-content {
   padding: var(--space-6);
+  position: relative;
+  z-index: 1;
 }
 
 .page-stack {
@@ -616,7 +648,99 @@ p {
   margin: 0 auto;
   display: grid;
   gap: var(--space-5);
-  animation: fadeIn 0.28s ease;
+  animation: fadeUp var(--motion-medium) var(--ease-smooth);
+  animation-fill-mode: both;
+}
+
+:is(
+    .sidebar-nav ul,
+    .cards-grid,
+    .student-grid,
+    .submission-grid,
+    .department-grid,
+    .simple-row-list,
+    .simple-group-list,
+    .checklist,
+    .leaderboard,
+    .eval-list-container
+  ) > * {
+  animation: fadeUp var(--motion-medium) var(--ease-smooth);
+  animation-fill-mode: both;
+}
+
+:is(
+    .sidebar-nav ul,
+    .cards-grid,
+    .student-grid,
+    .submission-grid,
+    .department-grid,
+    .simple-row-list,
+    .simple-group-list,
+    .checklist,
+    .leaderboard,
+    .eval-list-container
+  ) > *:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+:is(
+    .sidebar-nav ul,
+    .cards-grid,
+    .student-grid,
+    .submission-grid,
+    .department-grid,
+    .simple-row-list,
+    .simple-group-list,
+    .checklist,
+    .leaderboard,
+    .eval-list-container
+  ) > *:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+:is(
+    .sidebar-nav ul,
+    .cards-grid,
+    .student-grid,
+    .submission-grid,
+    .department-grid,
+    .simple-row-list,
+    .simple-group-list,
+    .checklist,
+    .leaderboard,
+    .eval-list-container
+  ) > *:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+:is(
+    .sidebar-nav ul,
+    .cards-grid,
+    .student-grid,
+    .submission-grid,
+    .department-grid,
+    .simple-row-list,
+    .simple-group-list,
+    .checklist,
+    .leaderboard,
+    .eval-list-container
+  ) > *:nth-child(5) {
+  animation-delay: 0.16s;
+}
+
+:is(
+    .sidebar-nav ul,
+    .cards-grid,
+    .student-grid,
+    .submission-grid,
+    .department-grid,
+    .simple-row-list,
+    .simple-group-list,
+    .checklist,
+    .leaderboard,
+    .eval-list-container
+  ) > *:nth-child(6) {
+  animation-delay: 0.2s;
 }
 
 .section-header {
@@ -1040,8 +1164,8 @@ p {
 .field textarea:focus,
 .field select:focus {
   outline: none;
-  border-color: rgba(37, 99, 235, 0.64);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(255, 107, 26, 0.18);
 }
 
 .field textarea {
@@ -1096,11 +1220,16 @@ p {
   font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.18s ease, filter 0.18s ease, background 0.18s ease;
+  transition: transform var(--motion-fast) var(--ease-smooth),
+    box-shadow var(--motion-fast) var(--ease-smooth),
+    filter var(--motion-fast) var(--ease-smooth),
+    background var(--motion-fast) var(--ease-smooth),
+    border-color var(--motion-fast) var(--ease-smooth);
 }
 
 .btn:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: var(--shadow-xs);
 }
 
 .btn:active {
@@ -1118,6 +1247,7 @@ p {
 
 .btn.primary:hover {
   filter: brightness(1.05);
+  box-shadow: 0 10px 22px rgba(255, 107, 26, 0.25);
 }
 
 .btn.ghost {
@@ -1821,6 +1951,12 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
+  .main-shell::after {
+    opacity: 0.18;
+    width: 50%;
+    transform: translateX(8%);
+  }
+
   .sidebar {
     position: fixed;
     top: 0;
@@ -1845,6 +1981,12 @@ tbody tr:hover {
   .topbar {
     flex-wrap: wrap;
     padding: 0.85rem var(--space-4);
+  }
+
+  .main-shell::after {
+    opacity: 0.12;
+    width: 55%;
+    transform: translateX(10%);
   }
 
   .topbar-controls {
@@ -1946,6 +2088,10 @@ tbody tr:hover {
   .topbar-controls {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .main-shell::after {
+    display: none;
   }
 
   .topbar-title h2 {

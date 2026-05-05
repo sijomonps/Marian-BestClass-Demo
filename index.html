@@ -4,319 +4,216 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Best Class Evaluation System - Marian College Kuttikkanam. A smart way to track, verify and celebrate class achievements.">
-  <title>Best Class Evaluation — Marian College Kuttikkanam</title>
+  <title>Marian Best Class — Marian College Kuttikkanam</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,600;1,700&display=swap" rel="stylesheet">
   <style>
-    /* ── Reset & Base ── */
     *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
 
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      font-family: 'Outfit', 'Segoe UI', Tahoma, sans-serif;
-      min-height: 100vh;
-      overflow: hidden;
-      background: linear-gradient(140deg, #fff4ec 0%, #ffe7d6 100%);
-    }
-
-    /* ── CSS Variables ── */
     :root {
       --orange-start: #ff8c32;
       --orange-mid: #ff6b1a;
       --orange-end: #e85d04;
-      --orange-deep: #d45000;
       --orange-glow: rgba(255, 108, 26, 0.25);
       --surface: #ffffff;
       --text-primary: #1a1a2e;
       --text-secondary: #6b7280;
       --text-muted: #9ca3af;
-      --border: #e5e7eb;
-      --border-focus: #ff6b1a;
-      --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.08), 0 8px 20px rgba(0, 0, 0, 0.04);
-      --shadow-button: 0 8px 24px rgba(255, 108, 26, 0.35);
-      --shadow-button-hover: 0 12px 32px rgba(255, 108, 26, 0.5);
-      --radius: 14px;
-      --radius-lg: 20px;
-      --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --border: #f1dfd1;
+      --shadow-card: 0 20px 60px rgba(15, 23, 42, 0.08), 0 10px 24px rgba(15, 23, 42, 0.05);
+      --shadow-button: 0 8px 24px rgba(255, 108, 26, 0.32);
+      --shadow-button-hover: 0 12px 32px rgba(255, 108, 26, 0.45);
+      --radius-lg: 24px;
+      --motion-fast: 0.3s;
+      --motion-medium: 0.45s;
+      --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+      --transition: var(--motion-fast) var(--ease-smooth);
     }
 
-    /* ── Login Wrapper (Card Shell) ── */
-    .login-wrapper {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    body {
+      font-family: 'Outfit', 'Segoe UI', Tahoma, sans-serif;
       min-height: 100vh;
-      width: 100%;
-      padding: 40px 24px;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      color: var(--text-primary);
+      background: linear-gradient(135deg, #fff7f0 0%, #ffefe1 45%, #fff4e8 100%);
+      overflow: hidden;
     }
 
-    .login-card-shell {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      width: min(1040px, 100%);
+    .login-layout {
+      width: min(1120px, 100%);
       min-height: 640px;
       background: var(--surface);
-      border-radius: 28px;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
       box-shadow: var(--shadow-card);
-      overflow: hidden;
-      position: relative;
+      animation: pageEnter var(--motion-medium) var(--ease-smooth);
+      animation-fill-mode: both;
     }
 
-    /* ── Left Panel (Branding) ── */
-    .login-branding {
+    .login-visual {
       position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 60px 56px;
-      background: linear-gradient(145deg, var(--orange-start), var(--orange-mid) 50%, var(--orange-end));
+      display: grid;
+      gap: 28px;
+      padding: 48px 56px 40px;
+      background: linear-gradient(150deg, var(--orange-start), var(--orange-mid) 45%, var(--orange-end));
+      color: #ffffff;
       overflow: hidden;
-      z-index: 1;
+      place-items: center;
     }
 
-    /* Decorative background elements */
-    .login-branding::before {
+    .login-visual::before {
       content: '';
       position: absolute;
-      top: -120px;
-      right: -80px;
-      width: 400px;
-      height: 400px;
+      width: 380px;
+      height: 380px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.06);
-      z-index: 0;
-    }
-
-    .login-branding::after {
-      content: '';
-      position: absolute;
-      bottom: -60px;
-      left: -40px;
-      width: 280px;
-      height: 280px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.04);
-      z-index: 0;
-    }
-
-    /* Floating cloud shapes */
-    .cloud {
-      position: absolute;
-      border-radius: 100px;
-      background: rgba(255, 255, 255, 0.12);
-      z-index: 0;
-    }
-
-    .cloud-1 {
-      width: 180px;
-      height: 60px;
-      top: 12%;
-      right: 8%;
-      animation: floatCloud 8s ease-in-out infinite;
-    }
-
-    .cloud-2 {
-      width: 140px;
-      height: 45px;
-      top: 20%;
-      right: 18%;
-      animation: floatCloud 10s ease-in-out infinite 2s;
-    }
-
-    .cloud-3 {
-      width: 100px;
-      height: 35px;
-      top: 16%;
-      right: 28%;
-      animation: floatCloud 7s ease-in-out infinite 4s;
-    }
-
-    @keyframes floatCloud {
-      0%, 100% { transform: translateX(0) translateY(0); }
-      50% { transform: translateX(-12px) translateY(-6px); }
-    }
-
-    /* Sparkle stars */
-    .sparkle {
-      position: absolute;
-      z-index: 0;
-      color: rgba(255, 255, 255, 0.55);
-      font-size: 14px;
-      animation: twinkle 3s ease-in-out infinite;
-    }
-
-    .sparkle-1 { top: 8%; right: 12%; animation-delay: 0s; }
-    .sparkle-2 { top: 15%; right: 35%; animation-delay: 1.2s; font-size: 10px; }
-    .sparkle-3 { top: 30%; right: 5%; animation-delay: 0.6s; font-size: 18px; }
-    .sparkle-4 { top: 55%; right: 40%; animation-delay: 2s; font-size: 12px; }
-    .sparkle-5 { top: 70%; left: 15%; animation-delay: 1.5s; font-size: 16px; }
-    .sparkle-6 { top: 85%; right: 20%; animation-delay: 0.3s; font-size: 11px; }
-    .sparkle-7 { top: 42%; left: 8%; animation-delay: 2.5s; }
-
-    @keyframes twinkle {
-      0%, 100% { opacity: 0.3; transform: scale(0.8); }
-      50% { opacity: 1; transform: scale(1.2); }
-    }
-
-    /* Decorative leaves/plants at bottom */
-    .plant-decor {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 140px;
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    .plant-leaf {
-      position: absolute;
-      bottom: 0;
-      width: 40px;
-      height: 80px;
-      border-radius: 40px 40px 0 0;
+      top: -160px;
+      right: -140px;
       background: rgba(255, 255, 255, 0.08);
     }
 
-    .plant-leaf:nth-child(1) { left: 5%; height: 70px; transform: rotate(-10deg); }
-    .plant-leaf:nth-child(2) { left: 8%; height: 90px; transform: rotate(-5deg); }
-    .plant-leaf:nth-child(3) { left: 12%; height: 60px; transform: rotate(8deg); }
-    .plant-leaf:nth-child(4) { right: 5%; height: 85px; transform: rotate(12deg); }
-    .plant-leaf:nth-child(5) { right: 9%; height: 65px; transform: rotate(-8deg); }
-    .plant-leaf:nth-child(6) { right: 13%; height: 75px; transform: rotate(5deg); }
-
-    /* Ground curve */
-    .ground-curve {
+    .login-visual::after {
+      content: '';
       position: absolute;
-      bottom: 0;
-      left: -5%;
-      right: -5%;
-      height: 100px;
-      background: rgba(210, 80, 0, 0.35);
-      border-radius: 50% 50% 0 0;
-      z-index: 0;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      bottom: -140px;
+      left: -80px;
+      background: rgba(255, 255, 255, 0.06);
     }
 
-    .branding-content {
-      position: relative;
-      z-index: 2;
-      max-width: 480px;
+    .brand-logo {
+      width: 160px;
+      height: auto;
     }
 
-    .branding-title {
-      font-size: clamp(2rem, 3.2vw, 2.8rem);
+    .visual-copy {
+      display: grid;
+      gap: 12px;
+      z-index: 1;
+      max-width: 460px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .visual-kicker {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .visual-title {
+      font-size: clamp(2.1rem, 3vw, 2.9rem);
       font-weight: 800;
-      color: #ffffff;
       line-height: 1.15;
-      margin-bottom: 16px;
       letter-spacing: -0.02em;
     }
 
-    .branding-subtitle {
+    .visual-lead {
       font-size: 1.05rem;
-      color: rgba(255, 255, 255, 0.9);
-      font-weight: 500;
-      margin-bottom: 8px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.92);
     }
 
-    .branding-description {
-      font-size: 0.92rem;
-      color: rgba(255, 255, 255, 0.72);
+    .visual-desc {
+      font-size: 0.95rem;
       line-height: 1.6;
-      max-width: 360px;
+      color: rgba(255, 255, 255, 0.78);
     }
 
-    /* Panda mascot image */
-    .mascot-container {
-      position: absolute;
-      bottom: 60px;
-      right: 30px;
-      z-index: 2;
-      width: clamp(200px, 22vw, 320px);
-      animation: mascotFloat 4s ease-in-out infinite;
+    .visual-tagline {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-style: italic;
+      font-size: 1.2rem;
+      color: rgba(255, 255, 255, 0.9);
+      margin-top: 6px;
     }
 
-    .mascot-container img {
-      width: 100%;
-      height: auto;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
-      filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.18));
-    }
-
-    @keyframes mascotFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
-    }
-
-    /* ── Right Panel (Login Card) ── */
-    .login-panel {
+    .visual-hero {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 42px;
-      background: #fff7ef;
+      align-items: flex-end;
+      justify-content: flex-start;
+      z-index: 1;
+    }
+
+    .visual-hero img {
+      width: min(320px, 70%);
+      height: auto;
+      filter: drop-shadow(0 18px 28px rgba(15, 23, 42, 0.2));
+    }
+
+    .login-panel {
       position: relative;
+      display: grid;
+      place-items: center;
+      padding: 48px 40px;
+      background: #fff7ef;
       overflow: hidden;
     }
 
-    /* Subtle background pattern */
     .login-panel::before {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       background:
-        radial-gradient(circle at 20% 80%, rgba(255, 108, 26, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(255, 108, 26, 0.02) 0%, transparent 50%);
+        radial-gradient(circle at 20% 20%, rgba(255, 108, 26, 0.06) 0%, transparent 55%),
+        radial-gradient(circle at 80% 80%, rgba(255, 108, 26, 0.04) 0%, transparent 55%);
       pointer-events: none;
+    }
+
+    .panel-hero {
+      position: absolute;
+      right: 24px;
+      bottom: 24px;
+      width: min(240px, 45%);
+      height: auto;
+      opacity: 0.95;
+      filter: drop-shadow(0 16px 26px rgba(15, 23, 42, 0.14));
+      pointer-events: none;
+      z-index: 0;
     }
 
     .login-card {
       position: relative;
       z-index: 1;
-      width: 100%;
-      max-width: 420px;
-      background: transparent;
-      border-radius: 0;
-      padding: 0;
-      box-shadow: none;
-      animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      width: min(420px, 100%);
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 34px 32px;
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+      animation: cardSlideUp var(--motion-medium) var(--ease-smooth);
+      animation-fill-mode: both;
     }
 
-    @keyframes cardSlideUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px) scale(0.97);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+    .card-logo {
+      display: block;
+      width: 130px;
+      height: auto;
+      margin: 0 auto 18px;
+      filter: drop-shadow(0 10px 18px rgba(15, 23, 42, 0.14));
     }
 
-    /* Card icon */
     .card-icon {
       width: 56px;
       height: 56px;
       border-radius: 16px;
       background: linear-gradient(135deg, #fff5eb, #ffe8d6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 24px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 22px;
     }
 
     .card-icon svg {
@@ -327,13 +224,12 @@
 
     .card-heading {
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
 
     .card-heading h1 {
-      font-size: 1.55rem;
+      font-size: 1.5rem;
       font-weight: 700;
-      color: var(--text-primary);
       margin-bottom: 6px;
     }
 
@@ -342,7 +238,6 @@
       color: var(--text-secondary);
     }
 
-    /* Form Styles */
     .form-group {
       margin-bottom: 24px;
     }
@@ -394,7 +289,7 @@
     }
 
     .select-wrapper select:focus {
-      border-color: var(--border-focus);
+      border-color: var(--orange-mid);
       background-color: #fff;
       box-shadow: 0 0 0 4px var(--orange-glow);
     }
@@ -403,7 +298,6 @@
       color: var(--text-muted);
     }
 
-    /* Continue Button */
     .btn-continue {
       width: 100%;
       padding: 15px 24px;
@@ -429,13 +323,13 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
       opacity: 0;
       transition: var(--transition);
     }
 
     .btn-continue:hover {
-      transform: translateY(-2px);
+      transform: translateY(-2px) scale(1.01);
       box-shadow: var(--shadow-button-hover);
     }
 
@@ -450,14 +344,13 @@
     .btn-continue svg {
       width: 18px;
       height: 18px;
-      transition: transform 0.3s ease;
+      transition: transform var(--motion-fast) var(--ease-smooth);
     }
 
     .btn-continue:hover svg {
       transform: translateX(4px);
     }
 
-    /* Error Alert */
     .login-alert {
       display: none;
       padding: 12px 16px;
@@ -479,21 +372,12 @@
       animation: shakeAlert 0.45s ease-in-out;
     }
 
-    @keyframes shakeAlert {
-      0%, 100% { transform: translateX(0); }
-      20% { transform: translateX(-6px); }
-      40% { transform: translateX(6px); }
-      60% { transform: translateX(-4px); }
-      80% { transform: translateX(4px); }
-    }
-
-    /* Decorative bottom accent on card */
     .card-accent {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      margin-top: 28px;
+      margin-top: 26px;
     }
 
     .accent-line {
@@ -528,163 +412,129 @@
       pointer-events: none;
     }
 
-    /* ── Tagline under title (italic) ── */
-    .branding-tagline {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-style: italic;
-      font-size: 1.35rem;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.92);
-      margin-top: 20px;
-      position: relative;
-      padding-bottom: 10px;
+    @keyframes pageEnter {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
-    .branding-tagline::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 60px;
-      height: 3px;
-      border-radius: 2px;
-      background: rgba(255, 255, 255, 0.45);
+    @keyframes cardSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(26px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
 
-    /* ── RESPONSIVE ── */
+    @keyframes floatSoft {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
 
-    /* ── MOBILE: stack the split card ── */
-    @media (max-width: 900px) {
+    @keyframes shakeAlert {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    @media (max-width: 980px) {
       body {
         overflow: auto;
+        padding: 24px;
       }
 
-      .login-wrapper {
-        padding: 28px 20px 36px;
-      }
-
-      .login-card-shell {
+      .login-layout {
         grid-template-columns: 1fr;
         min-height: unset;
-        border-radius: 22px;
       }
 
-      .login-branding {
-        display: contents;
+      .login-visual {
+        text-align: center;
+        padding: 40px 28px 32px;
       }
 
-      .sparkle,
-      .cloud,
-      .ground-curve,
-      .plant-decor,
-      .branding-content {
-        display: none !important;
+      .brand-logo {
+        display: none;
       }
 
-      .mascot-container {
-        position: static;
-        width: 140px;
-        margin: 0 auto 18px;
+      .visual-copy {
+        margin: 0 auto;
+      }
+
+      .visual-hero {
+        justify-content: center;
+      }
+
+      .visual-hero img {
+        width: min(240px, 70%);
+      }
+
+      .visual-lead,
+      .visual-desc,
+      .visual-tagline {
+        display: none;
       }
 
       .login-panel {
         padding: 36px 28px 40px;
       }
 
-      .branding-title {
-        font-size: clamp(1.8rem, 6vw, 2.2rem);
+      .panel-hero {
+        display: none;
       }
 
-      .card-icon {
-        margin-bottom: 18px;
-      }
-
-      .card-heading {
-        margin-bottom: 24px;
+      .login-footer {
+        position: static;
+        margin: 20px auto 12px;
       }
     }
 
-    /* Extra-small phones */
-    @media (max-width: 380px) {
-      .login-wrapper {
-        padding: 20px 16px 28px;
+    @media (max-width: 520px) {
+      body {
+        padding: 20px;
       }
 
-      .login-branding {
-        padding: 32px 22px 36px;
+      .login-card {
+        padding: 28px 24px;
       }
 
-      .login-panel {
-        padding: 28px 20px 32px;
+      .btn-continue {
+        font-size: 0.95rem;
       }
     }
   </style>
 </head>
 <body>
-
-  <div class="login-wrapper" id="login-wrapper">
-    <div class="login-card-shell">
-
-    <!-- ═══ LEFT: Branding Panel ═══ -->
-    <div class="login-branding">
-      <!-- Sparkles -->
-      <span class="sparkle sparkle-1">✦</span>
-      <span class="sparkle sparkle-2">✦</span>
-      <span class="sparkle sparkle-3">✦</span>
-      <span class="sparkle sparkle-4">✦</span>
-      <span class="sparkle sparkle-5">✦</span>
-      <span class="sparkle sparkle-6">✦</span>
-      <span class="sparkle sparkle-7">✦</span>
-
-      <!-- Clouds -->
-      <div class="cloud cloud-1"></div>
-      <div class="cloud cloud-2"></div>
-      <div class="cloud cloud-3"></div>
-
-      <!-- Ground & Plants -->
-      <div class="ground-curve"></div>
-      <div class="plant-decor">
-        <div class="plant-leaf"></div>
-        <div class="plant-leaf"></div>
-        <div class="plant-leaf"></div>
-        <div class="plant-leaf"></div>
-        <div class="plant-leaf"></div>
-        <div class="plant-leaf"></div>
+  <main class="login-layout" id="login-wrapper">
+    <section class="login-visual">
+      <div class="visual-copy">
+        <p class="visual-kicker">Marian College, Kuttikkanam</p>
+        <h1 class="visual-title">Marian Best Class</h1>
+        <p class="visual-lead">Recognize. Evaluate. Excel together.</p>
+        <p class="visual-desc">A smart way to track, verify and celebrate class achievements across Marian College Kuttikkanam.</p>
+        <p class="visual-tagline">Simple. Smart. Effective.</p>
       </div>
 
-      <!-- Text Content -->
-      <div class="branding-content">
-        <h1 class="branding-title">Best Class Evaluation</h1>
-        <p class="branding-subtitle">Marian College, Kuttikkanam</p>
-        <p class="branding-description">A smart way to track, verify, and celebrate class achievements across Marian College Kuttikkanam.</p>
-        <p class="branding-tagline">Simple. Smart. Effective.</p>
-      </div>
 
-      <!-- Panda Mascot -->
-      <div class="mascot-container">
-        <img src="Assets/Images/panda-mascot.png" alt="Panda mascot waving" id="panda-mascot">
-      </div>
-    </div>
+    </section>
 
-    <!-- ═══ RIGHT: Login Panel ═══ -->
-    <div class="login-panel">
+    <section class="login-panel">
       <div class="login-card" id="login-card">
-
-        <!-- Icon -->
-        <div class="card-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-          </svg>
-        </div>
-
-        <!-- Heading -->
+        <img class="card-logo" src="Assets/Images/Main-bg removved .png" alt="Marian Best Class logo">
         <div class="card-heading">
-          <h1>Sign in</h1>
-          <p>Best Class Evaluation · Marian College Kuttikkanam</p>
+          <p>Select your role to continue</p>
         </div>
 
-        <!-- Error Alert -->
         <div id="error-alert" class="login-alert">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -692,7 +542,6 @@
           Please select a role to continue.
         </div>
 
-        <!-- Login Form -->
         <form id="login-form">
           <div class="form-group">
             <label for="role-select">Select Role</label>
@@ -718,18 +567,14 @@
           </button>
         </form>
 
-        <!-- Decorative accent -->
         <div class="card-accent">
           <span class="accent-line"></span>
           <span class="accent-diamond"></span>
           <span class="accent-line accent-line-right"></span>
         </div>
-
       </div>
-    </div>
-
-    </div>
-  </div>
+    </section>
+  </main>
 
   <footer class="login-footer">
     Made by MCA 2025<br>
