@@ -151,6 +151,8 @@ const state = {
   academicYearState: createAcademicYearState(academicYears, academicYears[0]),
   activeAcademicYear: academicYears[0],
   submissionOpen: true,
+  submissionStartTime: "",
+  submissionEndTime: "",
   evaluationOpen: true,
   systemMode: "setup",
   criteriaLastUpdatedAt: null,
@@ -179,6 +181,7 @@ const state = {
     teacherVerification: createDefaultListViewState(),
     evaluatorEvaluation: createDefaultEvaluatorListViewState(),
     hodClasses: createDefaultListViewState(),
+    hodSubmissions: createDefaultListViewState(),
     iqacDepartments: createDefaultListViewState()
   },
   hodSelectedClass: null,
@@ -215,7 +218,45 @@ function normalizeAppPageConfig(config) {
   };
 }
 
+function persistState() {
+  const data = {
+    submissionOpen: state.submissionOpen,
+    submissionStartTime: state.submissionStartTime,
+    submissionEndTime: state.submissionEndTime,
+    evaluationOpen: state.evaluationOpen,
+    submissions: submissions,
+    users: users,
+    criteriaCatalog: criteriaCatalog,
+    academicYears: academicYears,
+    activeAcademicYear: state.activeAcademicYear
+  };
+  localStorage.setItem("bc_persistent_state", JSON.stringify(data));
+}
+
+function loadPersistedState() {
+  const saved = localStorage.getItem("bc_persistent_state");
+  if (!saved) return;
+  try {
+    const data = JSON.parse(saved);
+    state.submissionOpen = data.submissionOpen !== undefined ? data.submissionOpen : state.submissionOpen;
+    state.submissionStartTime = data.submissionStartTime || "";
+    state.submissionEndTime = data.submissionEndTime || "";
+    state.evaluationOpen = data.evaluationOpen !== undefined ? data.evaluationOpen : state.evaluationOpen;
+    if (data.submissions) submissions = data.submissions;
+    if (data.users) users = data.users;
+    if (data.criteriaCatalog) criteriaCatalog = data.criteriaCatalog;
+    if (data.academicYears) academicYears = data.academicYears;
+    if (data.activeAcademicYear) {
+      state.activeAcademicYear = data.activeAcademicYear;
+      state.selectedAcademicYear = data.activeAcademicYear;
+    }
+  } catch (e) {
+    console.error("Failed to load persisted state", e);
+  }
+}
+
 function init() {
+  loadPersistedState();
   if (!criteriaCatalog.length) {
     criteriaCatalog = getDefaultCriteriaCatalog();
   }
@@ -1024,8 +1065,8 @@ function renderDashboardCards(metrics) {
 
   const cards = [
     { key: "total", icon: "📊", label: "Total Submissions", value: metrics.total },
-    { key: "approved", icon: "✔", label: "Scored", value: metrics.approved },
-    { key: "pending", icon: "⏳", label: "Queue", value: metrics.pending },
+    { key: "approved", icon: "✔", label: "Verified", value: metrics.approved },
+    { key: "pending", icon: "⏳", label: "Pending", value: metrics.pending },
     {
       key: "score",
       icon: "📈",
@@ -1057,7 +1098,7 @@ function renderDashboardCards(metrics) {
 function renderStatusProgress(title, counts) {
   const total = Math.max(1, counts.total);
   const rows = [
-    { key: "Scored", value: counts.approved, className: "progress-approved" },
+    { key: "Verified", value: counts.approved, className: "progress-approved" },
     { key: "Submitted / Draft", value: counts.pending, className: "progress-pending" },
     { key: "Rejected", value: counts.rejected, className: "progress-rejected" },
     { key: "Correction", value: counts.correction, className: "progress-correction" }
@@ -1245,7 +1286,7 @@ function renderStudentDashboard() {
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Student Dashboard</h1><p class=\"muted\">See completed categories, remaining work, and your next activity.</p></div>" +
+    "<div><h1>Student Dashboard</h1></div>" +
     "</section>" +
     renderStudentProgressSection(progress) +
     renderStudentChecklistSection(progress.categories) +
@@ -1264,7 +1305,7 @@ function renderStudentSubmitPage() {
   if (!categories.length) {
     return (
       "<section class=\"section-header\">" +
-      "<div><h1>Submit Activity</h1><p class=\"muted\">Add proof and details for teacher verification.</p></div>" +
+      "<div><h1>Submit Activity</h1></div>" +
       "</section><section class=\"panel\"><p class=\"empty-state\">No criteria available. Please contact admin.</p></section>"
     );
   }
@@ -1305,21 +1346,35 @@ function renderStudentSubmitPage() {
   const criteriaRule = selectedItem ? renderCriteriaRuleCard(selectedItem) : "";
   const descriptionValue = editingSubmission ? editingSubmission.description : "";
   const proofHint = editingSubmission && editingSubmission.proof
-    ? "<p class=\"muted\">Current proof: " + escapeHtml(editingSubmission.proof) + ". Upload a file only if you want to replace it.</p>"
+    ? "<p class=\"muted\">Current proof: " + escapeHtml(editingSubmission.proof) + "</p>"
     : "";
   const proofRequired = editingSubmission ? "" : " required";
   const title = editingSubmission ? "Edit Submission" : "Submit Activity";
-  const subtitle = editingSubmission
-    ? "You can edit only Draft or Correction submissions."
-    : "Select category and item to submit activity evidence.";
   const cancelEditButton = editingSubmission
     ? "<button type=\"button\" class=\"btn ghost\" data-cancel-submission-edit=\"true\">Cancel Edit</button>"
     : "";
+  var windowCheck = isSubmissionWithinTimeWindow();
+  var timeWindowBanner = "";
+  if (!windowCheck.allowed) {
+    timeWindowBanner = "<section class=\"panel\" style=\"border-left:4px solid var(--danger);background:rgba(239,68,68,0.08)\"><p style=\"margin:0;color:var(--danger);font-weight:600\">⚠ " + escapeHtml(windowCheck.reason) + "</p></section>";
+  } else {
+    var startStr = state.submissionStartTime ? new Date(state.submissionStartTime).toLocaleString() : "";
+    var endStr = state.submissionEndTime ? new Date(state.submissionEndTime).toLocaleString() : "";
+    if (startStr || endStr) {
+      var windowInfo = "Submission window: ";
+      if (startStr) { windowInfo += "Opens " + startStr; }
+      if (startStr && endStr) { windowInfo += " — "; }
+      if (endStr) { windowInfo += "Closes " + endStr; }
+      timeWindowBanner = "<section class=\"panel\" style=\"border-left:4px solid var(--accent);background:rgba(99,102,241,0.06)\"><p style=\"margin:0;color:var(--accent);font-weight:500\">🕐 " + escapeHtml(windowInfo) + "</p></section>";
+    }
+  }
+  var formDisabledAttr = !windowCheck.allowed ? " style=\"opacity:0.5;pointer-events:none\"" : "";
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>" + title + "</h1><p class=\"muted\">" + subtitle + "</p></div>" +
+    "<div><h1>" + title + "</h1></div>" +
     "</section>" +
-    "<section class=\"panel\">" +
+    timeWindowBanner +
+    "<section class=\"panel\"" + formDisabledAttr + ">" +
     "<form id=\"student-submission-form\" class=\"stack-form two-col\">" +
     "<div class=\"field\"><label for=\"submission-category\">Category</label><select id=\"submission-category\" name=\"categoryId\" required>" + categoryOptions + "</select></div>" +
     "<div class=\"field\"><label for=\"submission-criteria\">Item</label><select id=\"submission-criteria\" name=\"criteriaId\" required>" + itemOptions + "</select></div>" +
@@ -1334,7 +1389,7 @@ function renderStudentSubmitPage() {
 }
 
 function renderCriteriaRuleCard(criteriaItem) {
-  const descriptionHtml = criteriaItem.description ? "<p class=\"muted\" style=\"margin-top: 8px; color: var(--color-text-soft); font-style: italic;\">" + escapeHtml(criteriaItem.description) + "</p>" : "";
+  const descriptionHtml = "";
   return (
     "<div class=\"criteria-rule-card full-span\">" +
     "<div><span class=\"criteria-chip\">" + escapeHtml(getCriteriaTypeLabel(criteriaItem.type)) + "</span><h3>" + escapeHtml(criteriaItem.title) + "</h3></div>" +
@@ -1351,21 +1406,16 @@ function renderStudentEvidenceInput(criteriaItem, submission) {
   const yesSelected = evidence.checked ? " selected" : "";
   const noSelected = evidence.checked ? "" : " selected";
   if (criteriaItem.type === "count") {
-    return "<div class=\"field\"><label for=\"submission-count\">Count</label><input id=\"submission-count\" name=\"countValue\" type=\"number\" min=\"1\" step=\"1\" required value=\"" + escapeAttribute(countValue) + "\" /><p class=\"muted\">Marks = count x " + criteriaItem.marks + "</p></div>";
+    return "<div class=\"field\"><label for=\"submission-count\">Count</label><input id=\"submission-count\" name=\"countValue\" type=\"number\" min=\"1\" step=\"1\" required value=\"" + escapeAttribute(countValue) + "\" /></div>";
   }
   if (criteriaItem.type === "negative") {
-    return "<div class=\"field\"><label for=\"submission-count\">Count</label><input id=\"submission-count\" name=\"countValue\" type=\"number\" min=\"1\" step=\"1\" required value=\"" + escapeAttribute(countValue) + "\" /><p class=\"muted\">Penalty = count x " + criteriaItem.marks + "</p></div>";
+    return "<div class=\"field\"><label for=\"submission-count\">Count</label><input id=\"submission-count\" name=\"countValue\" type=\"number\" min=\"1\" step=\"1\" required value=\"" + escapeAttribute(countValue) + "\" /></div>";
   }
   if (criteriaItem.type === "range") {
-    const rangeText = (criteriaItem.rules || [])
-      .map((rule) => {
-        return rule.min + "-" + rule.max + ": " + rule.marks;
-      })
-      .join(" | ");
-    return "<div class=\"field\"><label for=\"submission-range\">Percentage / Value</label><input id=\"submission-range\" name=\"rangeValue\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" required value=\"" + escapeAttribute(rangeValue) + "\" /><p class=\"muted\">Ranges: " + escapeHtml(rangeText) + "</p></div>";
+    return "<div class=\"field\"><label for=\"submission-range\">Percentage / Value</label><input id=\"submission-range\" name=\"rangeValue\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" required value=\"" + escapeAttribute(rangeValue) + "\" /></div>";
   }
   if (criteriaItem.type === "boolean") {
-    return "<div class=\"field\"><label for=\"submission-boolean\">Eligibility</label><select id=\"submission-boolean\" name=\"booleanValue\" required><option value=\"yes\"" + yesSelected + ">Yes</option><option value=\"no\"" + noSelected + ">No</option></select><p class=\"muted\">Marks awarded only when set to Yes.</p></div>";
+    return "<div class=\"field\"><label for=\"submission-boolean\">Eligibility</label><select id=\"submission-boolean\" name=\"booleanValue\" required><option value=\"yes\"" + yesSelected + ">Yes</option><option value=\"no\"" + noSelected + ">No</option></select></div>";
   }
   return "<div class=\"field\"><label>Marks Rule</label><input type=\"text\" value=\"Fixed marks: " + criteriaItem.marks + "\" readonly /></div>";
 }
@@ -1436,6 +1486,10 @@ function ensureListViewState() {
 
   if (!state.listViews.hodClasses || typeof state.listViews.hodClasses !== "object") {
     state.listViews.hodClasses = createDefaultListViewState();
+  }
+
+  if (!state.listViews.hodSubmissions || typeof state.listViews.hodSubmissions !== "object") {
+    state.listViews.hodSubmissions = createDefaultListViewState();
   }
 
   if (!state.listViews.iqacDepartments || typeof state.listViews.iqacDepartments !== "object") {
@@ -1701,8 +1755,14 @@ function renderStudentSubmissionsSection() {
         .join("")
     : "<tr><td colspan=\"8\" class=\"empty-row\">No submissions match your filters.</td></tr>";
 
+  const searchValue = escapeAttribute(viewState.search);
+  const statusFilters = renderFilterOptions(statusOptions, viewState.status, "All Statuses");
+
   return (
-    "" +
+    "<div class=\"list-toolbar\">" +
+    "<div class=\"field\"><label for=\"student-submission-search\">Search item</label><input id=\"student-submission-search\" type=\"search\" placeholder=\"Search item or category\" value=\"" + searchValue + "\" data-list-target=\"student-submissions\" data-list-filter=\"search\" /></div>" +
+    "<div class=\"field\"><label for=\"student-submission-status\">Status</label><select id=\"student-submission-status\" data-list-target=\"student-submissions\" data-list-filter=\"status\">" + statusFilters + "</select></div>" +
+    "</div>" +
     renderListSummary(pageInfo) +
     "<div class=\"table-wrap\">" +
     "<table><thead><tr><th>Category</th><th>Item</th><th>Evidence</th><th>Description</th><th>Status</th><th>Rule Marks</th><th>Final Marks</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table>" +
@@ -1714,7 +1774,7 @@ function renderStudentSubmissionsSection() {
 function renderStudentSubmissionsPage() {
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>My Submissions</h1><p class=\"muted\">Live status of all activities you submitted.</p></div>" +
+    "<div><h1>My Submissions</h1></div>" +
     "</section>" +
     "<section class=\"panel\" id=\"student-submissions-panel\">" +
     renderStudentSubmissionsSection() +
@@ -1724,13 +1784,14 @@ function renderStudentSubmissionsPage() {
 
 function renderStudentManagementPage() {
   const isTeacher = state.currentRole === "teacher";
-  const overrideClass = "BSc CS A";
+  const assignedClass = getTeacherAssignedClass();
+  const studentsInClass = students.filter((student) => student.className === assignedClass);
 
-  const myStudents = users.filter(u => u.role === "student" && u.class === overrideClass);
-
-  let rows = myStudents.map(u => 
-      "<tr><td>" + escapeHtml(u.name) + "</td><td>" + escapeHtml(u.email) + "</td><td>" + escapeHtml(u.department) + "</td>" +
-      "<td><button class='btn danger' data-delete-student='" + u.id + "'>Delete</button></td></tr>"
+  let rows = studentsInClass.map((student) => {
+      const linkedUser = getLinkedStudentUser(student.id);
+      return "<tr><td>" + escapeHtml(student.name) + "</td><td>" + escapeHtml(linkedUser ? linkedUser.email : "-") + "</td><td>" + escapeHtml(getDepartmentByClassName(student.className)) + "</td>" +
+      "<td><button class='btn danger' data-delete-student='" + student.id + "'>Delete</button></td></tr>";
+    }
   ).join("");
   
   if (!rows) rows = "<tr><td colspan='4'>No students found.</td></tr>";
@@ -1751,7 +1812,7 @@ function renderStudentManagementPage() {
   return (
     "<section class=\"section-header\">" +
     "<div><h1>" + (isTeacher ? 'Student Management' : 'Class Management') + "</h1>" +
-    "<p class=\"muted\">Manage students in your class.</p></div>" +
+    "</div>" +
     "</section>" +
     "<div style=\"display:flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;\">" +
        "<div class=\"panel\" style=\"flex: 2; min-width: 300px;\">" +
@@ -1826,33 +1887,55 @@ function renderTeacherDashboard() {
 }
 
 function renderTeacherVerificationSection() {
-  const teacherClass = "BSc CS A";
+  const teacherClass = getTeacherAssignedClass();
   const records = submissions
-    .filter(item => {
-       const user = findUserById(item.studentId);
-       return user && user.class === teacherClass;
+    .filter((item) => {
+       const student = getStudentById(item.studentId);
+       return student && student.className === teacherClass;
     })
     .sort((a, b) => b.id - a.id)
-    .map(item => createSubmissionViewRecord(item));
+    .map((item) => createSubmissionViewRecord(item));
 
   state.teacherTab = state.teacherTab || "pending";
+  const viewState = state.listViews.teacherVerification || createDefaultListViewState();
+  const statusOptions = buildUniqueOptions(records, (record) => record.status);
+  const studentOptions = buildStudentOptions(records);
 
-  let tabContent = "";
-  if (state.teacherTab === "pending") {
-    const pendingRecords = records.filter(r => isSubmissionSubmitted(r.status));
-    tabContent = buildTeacherTable(pendingRecords);
-  } else if (state.teacherTab === "reviewed") {
-    const reviewedRecords = records.filter(r => !isSubmissionSubmitted(r.status) && r.status !== workflowStatus.DRAFT);
-    tabContent = buildTeacherTable(reviewedRecords);
+  if (!hasFilterOption(viewState.status, statusOptions)) {
+    viewState.status = allFilterValue;
   }
+  if (!hasFilterOption(viewState.studentId, studentOptions)) {
+    viewState.studentId = allFilterValue;
+  }
+
+  const filteredBase = filterSubmissionViewRecords(records, viewState, true);
+  const tabRecords = filteredBase.filter((record) => {
+    if (state.teacherTab === "pending") {
+      return isSubmissionSubmitted(record.status);
+    }
+    return !isSubmissionSubmitted(record.status) && record.status !== workflowStatus.DRAFT;
+  });
+  const pageInfo = paginateListItems(tabRecords, viewState.currentPage, listPageSize);
+  viewState.currentPage = pageInfo.currentPage;
+
+  const statusFilters = renderFilterOptions(statusOptions, viewState.status, "All Statuses");
+  const studentFilters = renderFilterOptions(studentOptions, viewState.studentId, "All Students");
+  const tabContent = buildTeacherTable(pageInfo.items);
 
   return (
     "<section class=\"panel\">" +
+    "<div class=\"list-toolbar\">" +
+    "<div class=\"field\"><label for=\"teacher-verification-search\">Search</label><input id=\"teacher-verification-search\" type=\"search\" placeholder=\"Search student, item, class\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"teacher-verification\" data-list-filter=\"search\" /></div>" +
+    "<div class=\"field\"><label for=\"teacher-verification-student\">Student</label><select id=\"teacher-verification-student\" data-list-target=\"teacher-verification\" data-list-filter=\"studentId\">" + studentFilters + "</select></div>" +
+    "<div class=\"field\"><label for=\"teacher-verification-status\">Status</label><select id=\"teacher-verification-status\" data-list-target=\"teacher-verification\" data-list-filter=\"status\">" + statusFilters + "</select></div>" +
+    "</div>" +
     "<div class=\"button-row\" style=\"margin-bottom:20px;\">" +
     "<button type=\"button\" class=\"btn " + (state.teacherTab === "pending" ? "primary" : "ghost") + "\" data-teacher-tab=\"pending\">Pending</button>" +
     "<button type=\"button\" class=\"btn " + (state.teacherTab === "reviewed" ? "primary" : "ghost") + "\" data-teacher-tab=\"reviewed\">Reviewed</button>" +
     "</div>" +
+    renderListSummary(pageInfo) +
     tabContent +
+    renderPaginationControls("teacher-verification", pageInfo) +
     "</section>"
   );
 }
@@ -2057,7 +2140,7 @@ function renderEvaluatorDashboard() {
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Evaluator Dashboard</h1><p class=\"muted\">Review Verified submissions and lock final marks.</p></div>" +
+    "<div><h1>Evaluator Dashboard</h1></div>" +
     "</section>" +
     renderDashboardCards(metrics) +
     renderStatusProgress("Evaluation Progress", {
@@ -2150,13 +2233,22 @@ function renderEvaluatorEvaluationSection() {
   );
 
   let contentHtml = "";
+  let pageInfo = null;
+  const evaluatorPaginationTarget = state.evaluatorTab === "completed" ? "evaluator-completed" : "evaluator-pending";
+  const currentPage = state.evaluatorTab === "completed" ? viewState.completedPage : viewState.pendingPage;
   let breadcrumbTitle = "";
   
   if (state.evaluatorLevel === "departments") {
     breadcrumbTitle = "Departments";
     const deptsToShow = Object.values(metrics.departments).filter(d => d.show).sort((a,b) => a.name.localeCompare(b.name));
-    
-    contentHtml = deptsToShow.map(dept => {
+    pageInfo = paginateListItems(deptsToShow, currentPage, listPageSize);
+    if (state.evaluatorTab === "completed") {
+      viewState.completedPage = pageInfo.currentPage;
+    } else {
+      viewState.pendingPage = pageInfo.currentPage;
+    }
+
+    contentHtml = pageInfo.items.map(dept => {
       const pct = dept.total > 0 ? (dept.completed / dept.total) * 100 : 0;
       return (
         "<div class=\"eval-list-row\" data-eval-navigate=\"classes\" data-eval-dept=\"" + escapeAttribute(dept.name) + "\">" +
@@ -2171,8 +2263,14 @@ function renderEvaluatorEvaluationSection() {
   else if (state.evaluatorLevel === "classes") {
     breadcrumbTitle = (viewState.department !== allFilterValue ? escapeHtml(viewState.department) + " / " : "") + "Classes";
     const classesToShow = Object.values(metrics.classes).filter(c => c.show).sort((a,b) => a.name.localeCompare(b.name));
-    
-    contentHtml = classesToShow.map(cls => {
+    pageInfo = paginateListItems(classesToShow, currentPage, listPageSize);
+    if (state.evaluatorTab === "completed") {
+      viewState.completedPage = pageInfo.currentPage;
+    } else {
+      viewState.pendingPage = pageInfo.currentPage;
+    }
+
+    contentHtml = pageInfo.items.map(cls => {
       const pct = cls.total > 0 ? (cls.completed / cls.total) * 100 : 0;
       return (
         "<div class=\"eval-list-row\" data-eval-navigate=\"students\" data-eval-class=\"" + escapeAttribute(cls.name) + "\">" +
@@ -2187,8 +2285,14 @@ function renderEvaluatorEvaluationSection() {
   else if (state.evaluatorLevel === "students") {
     breadcrumbTitle = (viewState.className !== allFilterValue ? escapeHtml(viewState.className) + " / " : "") + "Students";
     const studentsToShow = Object.values(metrics.students).filter(s => s.show).sort((a,b) => a.name.localeCompare(b.name));
-    
-    contentHtml = studentsToShow.map(stu => {
+    pageInfo = paginateListItems(studentsToShow, currentPage, listPageSize);
+    if (state.evaluatorTab === "completed") {
+      viewState.completedPage = pageInfo.currentPage;
+    } else {
+      viewState.pendingPage = pageInfo.currentPage;
+    }
+
+    contentHtml = pageInfo.items.map(stu => {
       const pendingText = state.evaluatorTab === "completed" ? "completed" : "pending";
       const count = stu.submissions.filter(r => r.show).length;
       return (
@@ -2206,7 +2310,15 @@ function renderEvaluatorEvaluationSection() {
     breadcrumbTitle = studentData ? escapeHtml(studentData.name) + " / Submissions" : "Submissions";
     
     if (studentData) {
-      contentHtml = studentData.submissions.filter(r => r.show).map(record => {
+      const visibleSubmissions = studentData.submissions.filter(r => r.show);
+      pageInfo = paginateListItems(visibleSubmissions, currentPage, listPageSize);
+      if (state.evaluatorTab === "completed") {
+        viewState.completedPage = pageInfo.currentPage;
+      } else {
+        viewState.pendingPage = pageInfo.currentPage;
+      }
+
+      contentHtml = pageInfo.items.map(record => {
         const currentMarks = record.finalMarks !== null ? record.finalMarks : record.previewMarks;
         let marksHtml = "";
         
@@ -2257,7 +2369,9 @@ function renderEvaluatorEvaluationSection() {
     "<section class=\"panel\">" +
       topBarHtml +
       navBarHtml +
+      renderListSummary(pageInfo || { totalItems: 0 }) +
       "<div class=\"eval-list-container\">" + contentHtml + "</div>" +
+      (pageInfo ? renderPaginationControls(evaluatorPaginationTarget, pageInfo) : "") +
     "</section>"
   );
 }
@@ -2393,7 +2507,7 @@ function renderAdminCriteriaPage() {
     .join("");
 
   return (
-    "<section class=\"section-header\"><div><h1>Criteria Management</h1><p class=\"muted\">Add categories, add criteria items, and update marks/rules.</p></div></section>" +
+    "<section class=\"section-header\"><div><h1>Criteria Management</h1></div></section>" +
     "<section class=\"cards-grid two-panel-grid\">" +
     "<article class=\"panel\"><h3>Academic Year</h3><div class=\"field\"><label for=\"academic-year-select\">Select Session</label><select id=\"academic-year-select\">" + yearOptions + "</select></div>" +
     "<div class=\"meta-list\">" + academicYearStatusRows + "</div>" +
@@ -2417,7 +2531,7 @@ function renderAdminUserManagementPage() {
   }
 
   return (
-    "<section class=\"section-header\"><div><h1>User Management</h1><p class=\"muted\">User management module is not available in this page context.</p></div></section>"
+    "<section class=\"section-header\"><div><h1>User Management</h1></div></section>"
   );
 }
 
@@ -2427,7 +2541,7 @@ function renderAdminDepartmentManagementPage() {
   }
 
   return (
-    "<section class=\"section-header\"><div><h1>Department Management</h1><p class=\"muted\">Department management module is not available in this page context.</p></div></section>"
+    "<section class=\"section-header\"><div><h1>Department Management</h1></div></section>"
   );
 }
 
@@ -2437,7 +2551,7 @@ function renderAdminSettingsPage() {
   }
 
   return (
-    "<section class=\"section-header\"><div><h1>Settings</h1><p class=\"muted\">Settings module is not available in this page context.</p></div></section>"
+    "<section class=\"section-header\"><div><h1>Settings</h1></div></section>"
   );
 }
 
@@ -2454,7 +2568,7 @@ function renderIqacDashboard() {
   };
 
   return (
-    "<section class=\"section-header\"><div><h1>IQAC/HOD Dashboard</h1><p class=\"muted\">Department-level overall class performance overview.</p></div></section>" +
+    "<section class=\"section-header\"><div><h1>IQAC/HOD Dashboard</h1></div></section>" +
     renderDashboardCards(metrics) +
     renderCategoryBreakdown(submissions, "Department Score by Category") +
     renderStatusProgress("Department Submission Health", metrics)
@@ -2506,7 +2620,7 @@ function renderIqacReportsPage() {
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Reports & Feedback</h1><p class=\"muted\">Leaderboard, monitor class-wise progress, and provide feedback.</p></div>" +
+    "<div><h1>Reports & Feedback</h1></div>" +
     "<div class=\"button-row\">" +
     "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"csv\" data-iqac-scope=\"institution\">Export CSV</button>" +
     "<button type=\"button\" class=\"btn ghost\" data-iqac-export=\"pdf\" data-iqac-scope=\"institution\">Export PDF</button>" +
@@ -2543,13 +2657,12 @@ function renderHodDepartmentSection() {
   const deptClasses = getClassesForDepartment(department);
 
   const classRecords = deptClasses.map((className) => {
-    const classStudents = students.filter((s) => s.className === className);
     const classSubmissions = submissions.filter((sub) => {
       const student = getStudentById(sub.studentId);
       return student && student.className === className;
     });
-    const scored = classSubmissions.filter((s) => isSubmissionScored(s)).length;
-    const total = classStudents.length > 0 ? classStudents.length * 5 : 1;
+    const scored = classSubmissions.filter((s) => isSubmissionScored(s.status)).length;
+    const total = classSubmissions.length || 1;
     return {
       name: className,
       total: total,
@@ -2610,43 +2723,83 @@ function renderHodClassDetails() {
     return student && student.className === className;
   });
 
-  const studentRecords = classStudents.map((student) => {
-    const studentSubmissions = classSubmissions.filter((s) => s.studentId === student.id);
-    const scored = studentSubmissions.filter((s) => isSubmissionScored(s)).length;
-    const total = studentSubmissions.length || 5;
-    return {
-      id: student.id,
-      name: student.name,
-      total: total,
-      scored: scored,
-      percent: Math.round((scored / total) * 100),
-      status: scored > 0 ? "In Progress" : "Pending"
-    };
-  });
+  const submissionRecords = classSubmissions
+    .sort((a, b) => b.id - a.id)
+    .map((item) => createSubmissionViewRecord(item));
+  const viewState = state.listViews.hodSubmissions || createDefaultListViewState();
+  const statusOptions = buildUniqueOptions(submissionRecords, (record) => record.status);
+  const studentOptions = buildStudentOptions(submissionRecords);
 
-  const studentRows = studentRecords.map((record) => {
-    return (
-      "<div class=\"eval-list-row\">" +
-      "<div class=\"eval-row-main\"><strong>" + escapeHtml(record.name) + "</strong><p class=\"muted\" style=\"font-size:0.85rem; margin-top:4px;\">" + record.status + "</p></div>" +
-      "<div class=\"eval-row-progress\"><span class=\"muted\" style=\"font-size:0.85rem; margin-right:12px;\">" + record.percent + "%</span><div class=\"eval-progress-bar\"><div style=\"width: " + record.percent + "%\"></div></div></div>" +
-      "</div>"
-    );
-  }).join("");
+  if (!hasFilterOption(viewState.status, statusOptions)) {
+    viewState.status = allFilterValue;
+  }
+  if (!hasFilterOption(viewState.studentId, studentOptions)) {
+    viewState.studentId = allFilterValue;
+  }
+
+  const filteredRecords = filterSubmissionViewRecords(submissionRecords, viewState, true);
+  const pageInfo = paginateListItems(filteredRecords, viewState.currentPage, listPageSize);
+  viewState.currentPage = pageInfo.currentPage;
+
+  const submissionRows = pageInfo.items.length
+    ? pageInfo.items.map((record) => {
+        return (
+          "<tr>" +
+          "<td>" + escapeHtml(record.studentName) + "</td>" +
+          "<td>" + escapeHtml(record.itemTitle) + "</td>" +
+          "<td>" + escapeHtml(record.evidenceSummary) + "</td>" +
+          "<td><span class=\"status-pill " + getStatusClass(record.status) + "\">" + escapeHtml(record.status) + "</span></td>" +
+          "<td><button type=\"button\" class=\"btn ghost\" data-view-doc=\"" + escapeAttribute(record.proof) + "\">View</button></td>" +
+          "</tr>"
+        );
+      }).join("")
+    : "<tr><td colspan=\"5\" class=\"empty-row\">No submissions found.</td></tr>";
+
+  const feedbackStudentOptions = classStudents
+    .map((student) => "<option value=\"" + student.id + "\">" + escapeHtml(student.name) + "</option>")
+    .join("");
+  const classFeedbackEntries = (state.hodFeedbackEntries || [])
+    .filter((entry) => entry.className === className && Number(entry.studentId) > 0);
+  const feedbackRows = classFeedbackEntries.length
+    ? "<div class=\"simple-row-list\">" + classFeedbackEntries.map((entry) => {
+        const when = entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "";
+        return (
+          "<div class=\"simple-row-item\">" +
+          "<div><p><strong>" + escapeHtml(entry.targetLabel) + "</strong></p><p>" + escapeHtml(entry.note) + "</p></div>" +
+          "<span class=\"muted\">" + escapeHtml(when) + "</span>" +
+          "</div>"
+        );
+      }).join("") + "</div>"
+    : "<p class=\"empty-state\">No feedback records.</p>";
 
   return (
     "<section class=\"panel\">" +
-    "<div class=\"panel-head\"><h3>" + escapeHtml(className) + " - Students</h3>" +
+    "<div class=\"panel-head\"><h3>" + escapeHtml(className) + "</h3>" +
     "<div class=\"button-row\">" +
     "<button type=\"button\" class=\"btn ghost\" id=\"hod-back-to-classes\" style=\"padding:6px 12px;\">← Back</button>" +
     "<button type=\"button\" class=\"btn ghost\" data-hod-export=\"csv\" data-hod-scope=\"class\">Export CSV</button>" +
     "<button type=\"button\" class=\"btn ghost\" data-hod-export=\"pdf\" data-hod-scope=\"class\">Export PDF</button>" +
     "</div>" +
     "</div>" +
-    "<div style=\"padding:12px 0; border-bottom:1px solid var(--color-border); margin-bottom:12px;\">" +
-    "<p class=\"muted\"><strong>Total Students:</strong> " + classStudents.length + " | <strong>Completed:</strong> " + studentRecords.filter(r => r.scored > 0).length + "</p>" +
+    "<div class=\"list-toolbar\">" +
+    "<div class=\"field\"><label for=\"hod-submission-search\">Search</label><input id=\"hod-submission-search\" type=\"search\" value=\"" + escapeAttribute(viewState.search) + "\" data-list-target=\"hod-submissions\" data-list-filter=\"search\" /></div>" +
+    "<div class=\"field\"><label for=\"hod-submission-student\">Student</label><select id=\"hod-submission-student\" data-list-target=\"hod-submissions\" data-list-filter=\"studentId\">" + renderFilterOptions(studentOptions, viewState.studentId, "All Students") + "</select></div>" +
+    "<div class=\"field\"><label for=\"hod-submission-status\">Status</label><select id=\"hod-submission-status\" data-list-target=\"hod-submissions\" data-list-filter=\"status\">" + renderFilterOptions(statusOptions, viewState.status, "All Statuses") + "</select></div>" +
     "</div>" +
-    "<div class=\"eval-list-container\">" + studentRows + "</div>" +
-    "</section>"
+    renderListSummary(pageInfo) +
+    "<div class=\"table-wrap\"><table><thead><tr><th>Student</th><th>Item</th><th>Evidence</th><th>Status</th><th>Document</th></tr></thead><tbody>" + submissionRows + "</tbody></table></div>" +
+    renderPaginationControls("hod-submissions-list", pageInfo) +
+    "</section>" +
+    "<section class=\"panel\">" +
+    "<h3>Student Feedback</h3>" +
+    "<form id=\"hod-student-feedback-form\" class=\"stack-form\">" +
+    "<input type=\"hidden\" name=\"className\" value=\"" + escapeAttribute(className) + "\" />" +
+    "<div class=\"field\"><label for=\"hod-student-feedback-target\">Student</label><select id=\"hod-student-feedback-target\" name=\"studentId\" required>" + feedbackStudentOptions + "</select></div>" +
+    "<div class=\"field\"><label for=\"hod-student-feedback-note\">Feedback</label><textarea id=\"hod-student-feedback-note\" name=\"note\" rows=\"3\" required></textarea></div>" +
+    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">Save Feedback</button></div>" +
+    "</form>" +
+    "</section>" +
+    "<section class=\"panel\"><h3>Feedback Records</h3>" + feedbackRows + "</section>"
   );
 }
 
@@ -2655,7 +2808,7 @@ function renderHodDashboardPage() {
   if (!department) {
     return (
       "<section class=\"section-header\">" +
-      "<div><h1>Department Monitoring</h1><p class=\"muted\">No department assigned to your account.</p></div>" +
+      "<div><h1>Department Monitoring</h1></div>" +
       "</section>"
     );
   }
@@ -2663,7 +2816,7 @@ function renderHodDashboardPage() {
   if (state.hodSelectedClass) {
     return (
       "<section class=\"section-header\">" +
-      "<div><h1>" + escapeHtml(department) + " Department</h1><p class=\"muted\">Monitor classes and completion status in your department.</p></div>" +
+      "<div><h1>" + escapeHtml(department) + "</h1></div>" +
       "</section>" +
       renderHodClassDetails()
     );
@@ -2671,7 +2824,7 @@ function renderHodDashboardPage() {
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>" + escapeHtml(department) + " Department</h1><p class=\"muted\">Monitor classes and completion status in your department.</p></div>" +
+    "<div><h1>" + escapeHtml(department) + "</h1></div>" +
     "</section>" +
     renderHodDepartmentSection()
   );
@@ -2682,9 +2835,9 @@ function renderHodFeedbackPage() {
   if (!department) {
     return (
       "<section class=\"section-header\">" +
-      "<div><h1>Department Feedback</h1><p class=\"muted\">No department assigned to your account.</p></div>" +
+      "<div><h1>Department Feedback</h1></div>" +
       "</section>" +
-      "<section class=\"panel\"><p class=\"empty-state\">Please contact admin to assign a department.</p></section>"
+      "<section class=\"panel\"><p class=\"empty-state\">No department assigned.</p></section>"
     );
   }
 
@@ -2707,21 +2860,21 @@ function renderHodFeedbackPage() {
           "</div>"
         );
       }).join("") + "</div>"
-    : "<p class=\"muted\">No feedback submitted yet.</p>";
+    : "<p class=\"empty-state\">No feedback records.</p>";
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Department Feedback</h1><p class=\"muted\">Provide feedback on department activities.</p></div>" +
+    "<div><h1>Department Feedback</h1></div>" +
     "</section>" +
     "<section class=\"panel\">" +
-    "<h3>Submit Feedback</h3>" +
+    "<h3>Feedback</h3>" +
     "<form id=\"hod-feedback-form\" class=\"stack-form\">" +
     "<div class=\"field\"><label for=\"hod-feedback-target\">Target</label><select id=\"hod-feedback-target\" name=\"target\">" + targetOptions + "</select></div>" +
-    "<div class=\"field\"><label for=\"hod-feedback-note\">Feedback</label><textarea id=\"hod-feedback-note\" name=\"note\" rows=\"4\" placeholder=\"Share feedback for this department or class...\" required></textarea></div>" +
-    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">Submit Feedback</button></div>" +
+    "<div class=\"field\"><label for=\"hod-feedback-note\">Note</label><textarea id=\"hod-feedback-note\" name=\"note\" rows=\"4\" required></textarea></div>" +
+    "<div class=\"button-row\"><button type=\"submit\" class=\"btn primary\">Save</button></div>" +
     "</form>" +
     "</section>" +
-    "<section class=\"panel\"><h3>Submitted Feedback</h3>" + entriesHtml + "</section>"
+    "<section class=\"panel\"><h3>Records</h3>" + entriesHtml + "</section>"
   );
 }
 
@@ -2737,8 +2890,8 @@ function renderIqacDepartmentSection() {
       return deptClasses.includes(student.className);
     });
 
-    const scored = classSubmissions.filter((s) => isSubmissionScored(s)).length;
-    const total = deptClasses.length > 0 ? deptClasses.length * 5 : 1;
+    const scored = classSubmissions.filter((s) => isSubmissionScored(s.status)).length;
+    const total = classSubmissions.length || 1;
     return {
       name: dept,
       classCount: deptClasses.length,
@@ -2801,7 +2954,7 @@ function renderIqacDepartmentDetails() {
       const student = getStudentById(sub.studentId);
       return student && student.className === className;
     });
-    const scored = classSubmissions.filter((s) => isSubmissionScored(s)).length;
+    const scored = classSubmissions.filter((s) => isSubmissionScored(s.status)).length;
     const total = classSubmissions.length || 1;
     return {
       name: className,
@@ -2843,7 +2996,7 @@ function renderIqacDashboardPage() {
   if (state.iqacSelectedDepartment) {
     return (
       "<section class=\"section-header\">" +
-      "<div><h1>Institution Monitoring</h1><p class=\"muted\">Monitor all departments and classes across the institution.</p></div>" +
+      "<div><h1>Institution Monitoring</h1></div>" +
       "</section>" +
       renderIqacDepartmentDetails()
     );
@@ -2851,7 +3004,7 @@ function renderIqacDashboardPage() {
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Institution Monitoring</h1><p class=\"muted\">Monitor all departments and classes across the institution.</p></div>" +
+    "<div><h1>Institution Monitoring</h1></div>" +
     "</section>" +
     renderIqacDepartmentSection()
   );
@@ -2880,7 +3033,7 @@ function renderIqacRemarksPage() {
 
   return (
     "<section class=\"section-header\">" +
-    "<div><h1>Institutional Remarks</h1><p class=\"muted\">Provide remarks on institutional performance.</p></div>" +
+    "<div><h1>Institutional Remarks</h1></div>" +
     "</section>" +
     "<section class=\"panel\">" +
     "<h3>Submit Remarks</h3>" +
@@ -3001,13 +3154,12 @@ function handleHodExport(format, scope) {
     const deptClasses = getClassesForDepartment(department);
     rows = [["Class", "Scored", "Total", "Percent"]];
     deptClasses.forEach((className) => {
-      const classStudents = students.filter((student) => student.className === className);
       const classSubmissions = submissions.filter((sub) => {
         const student = getStudentById(sub.studentId);
         return student && student.className === className;
       });
       const scored = classSubmissions.filter((item) => isSubmissionScored(item.status)).length;
-      const total = classStudents.length > 0 ? classStudents.length * 5 : 1;
+      const total = classSubmissions.length || 1;
       const percent = Math.round((scored / total) * 100) + "%";
       rows.push([className, String(scored), String(total), percent]);
     });
@@ -3066,7 +3218,7 @@ function handleIqacExport(format, scope) {
         return deptClasses.includes(student.className);
       });
       const scored = classSubmissions.filter((item) => isSubmissionScored(item.status)).length;
-      const total = deptClasses.length > 0 ? deptClasses.length * 5 : 1;
+      const total = classSubmissions.length || 1;
       const percent = Math.round((scored / total) * 100) + "%";
       rows.push([department, String(deptClasses.length), String(scored), String(total), percent]);
     });
@@ -3109,6 +3261,9 @@ function handlePageClick(event) {
   const teacherTabButton = event.target.closest("button[data-teacher-tab]");
   if (teacherTabButton) {
     state.teacherTab = teacherTabButton.dataset.teacherTab;
+    if (state.listViews && state.listViews.teacherVerification) {
+      state.listViews.teacherVerification.currentPage = 1;
+    }
     renderPage();
     return;
   }
@@ -3116,6 +3271,10 @@ function handlePageClick(event) {
   const evaluatorTabButton = event.target.closest("button[data-evaluator-tab]");
   if (evaluatorTabButton) {
     state.evaluatorTab = evaluatorTabButton.dataset.evaluatorTab;
+    if (state.listViews && state.listViews.evaluatorEvaluation) {
+      state.listViews.evaluatorEvaluation.pendingPage = 1;
+      state.listViews.evaluatorEvaluation.completedPage = 1;
+    }
     renderPage();
     return;
   }
@@ -3143,6 +3302,10 @@ function handlePageClick(event) {
         state.evaluatorSelectedStudentId = Number(navigateBtn.dataset.evalStudent);
     }
     state.evaluatorLevel = targetLevel;
+    if (state.listViews && state.listViews.evaluatorEvaluation) {
+      state.listViews.evaluatorEvaluation.pendingPage = 1;
+      state.listViews.evaluatorEvaluation.completedPage = 1;
+    }
     refreshEvaluatorEvaluationSection();
     return;
   }
@@ -3157,6 +3320,10 @@ function handlePageClick(event) {
     } else if (state.evaluatorLevel === "classes") {
       state.evaluatorLevel = "departments";
       state.listViews.evaluatorEvaluation.department = allFilterValue;
+    }
+    if (state.listViews && state.listViews.evaluatorEvaluation) {
+      state.listViews.evaluatorEvaluation.pendingPage = 1;
+      state.listViews.evaluatorEvaluation.completedPage = 1;
     }
     refreshEvaluatorEvaluationSection();
     return;
@@ -3201,6 +3368,9 @@ function handlePageClick(event) {
   const hodClassRow = event.target.closest("[data-hod-class-row]");
   if (hodClassRow && state.currentRole === "hod") {
     state.hodSelectedClass = hodClassRow.dataset.hodClassRow;
+    if (state.listViews && state.listViews.hodSubmissions) {
+      state.listViews.hodSubmissions = createDefaultListViewState();
+    }
     renderPage();
     return;
   }
@@ -3298,6 +3468,38 @@ function handlePageClick(event) {
     return;
   }
 
+  const deleteStudentButton = event.target.closest("button[data-delete-student]");
+  if (deleteStudentButton && state.currentRole === "teacher") {
+    const studentId = Number(deleteStudentButton.dataset.deleteStudent);
+    const student = getStudentById(studentId);
+    if (!student) {
+      showToast("Student not found.", "warning");
+      return;
+    }
+
+    openConfirmModal("Delete Student", "Delete " + student.name + " and linked records?", () => {
+      const activeSubmissions = submissions.filter((item) => Number(item.studentId) === studentId);
+      if (activeSubmissions.length) {
+        showToast("Cannot delete student with submissions. Remove submissions first.", "warning");
+        return;
+      }
+
+      const studentIndex = students.findIndex((item) => Number(item.id) === studentId);
+      if (studentIndex > -1) {
+        students.splice(studentIndex, 1);
+      }
+
+      const userIndex = users.findIndex((user) => Number(user.linkedStudentId) === studentId);
+      if (userIndex > -1) {
+        users.splice(userIndex, 1);
+      }
+
+      showToast("Student deleted successfully.", "success");
+      renderPage();
+    });
+    return;
+  }
+
   const cancelSubmissionEditButton = event.target.closest("button[data-cancel-submission-edit]");
   if (cancelSubmissionEditButton) {
     state.editingSubmissionId = null;
@@ -3364,16 +3566,36 @@ function handlePageSubmit(event) {
     const email = isTeacher ? String(formData.get("email") || "").trim() : name.toLowerCase().replace(/\s/g, "") + "@college.edu";
     const deptRaw = String(formData.get("department") || "").trim();
     const dept = isTeacher ? (deptRaw || "Computer Science") : "Computer Science";
-    
+
+    if (!name) {
+      showToast("Student name is required.", "warning");
+      return;
+    }
+
+    const className = getTeacherAssignedClass();
+    const existingStudent = students.find((student) => normalizeFilterText(student.name) === normalizeFilterText(name) && student.className === className);
+    if (existingStudent) {
+      showToast("Student already exists in this class.", "warning");
+      return;
+    }
+
+    const studentId = getNextStudentId();
+    students.push({
+      id: studentId,
+      name: name,
+      className: className
+    });
+
     users.push({
       id: getNextUserId(),
       name: name,
       email: email,
       role: "student",
       department: dept,
-      class: "BSc CS A",
+      class: className,
       isApproved: true,
-      status: "Active"
+      status: "Active",
+      linkedStudentId: studentId
     });
     showToast("Student added successfully.", "success");
     form.reset();
@@ -3383,8 +3605,77 @@ function handlePageSubmit(event) {
 
   if (form.id === "bulk-upload-form") {
     event.preventDefault();
-    showToast("Simulating Excel upload... records added.", "success");
+    const bulkCount = 30;
+    const className = getTeacherAssignedClass();
+    const items = getAllCriteriaItems();
+    if (!items.length) {
+      showToast("No criteria items available for bulk generation.", "warning");
+      return;
+    }
+
+    const statuses = [workflowStatus.SUBMITTED, workflowStatus.VERIFIED];
+    let createdStudents = 0;
+    let createdSubmissions = 0;
+
+    for (let index = 0; index < bulkCount; index += 1) {
+      const studentId = getNextStudentId();
+      const studentName = "Bulk Student " + String(studentId).padStart(3, "0");
+      students.push({
+        id: studentId,
+        name: studentName,
+        className: className
+      });
+
+      users.push({
+        id: getNextUserId(),
+        name: studentName,
+        email: "bulk.student." + studentId + "@college.edu",
+        role: "student",
+        department: getDepartmentByClassName(className),
+        class: className,
+        isApproved: true,
+        status: "Active",
+        linkedStudentId: studentId
+      });
+      createdStudents += 1;
+
+      const itemA = items[(studentId + index) % items.length];
+      const itemB = items[(studentId + index + 7) % items.length];
+      [itemA, itemB].forEach((criteriaItem, submissionIndex) => {
+        const nextSubmissionId = getNextSubmissionId();
+        const entryStatus = statuses[(studentId + submissionIndex) % statuses.length];
+        const evidence = normalizeEvidence({
+          type: criteriaItem.type,
+          count: criteriaItem.type === "count" || criteriaItem.type === "negative" ? 1 + (studentId % 3) : null,
+          value: criteriaItem.type === "range" ? 70 + (studentId % 25) : null,
+          checked: criteriaItem.type === "boolean" ? studentId % 2 === 0 : false
+        });
+        const autoMarks = calculateMarksByRule({ evidence: evidence }, criteriaItem);
+        submissions.push({
+          id: nextSubmissionId,
+          studentId: studentId,
+          criteriaId: criteriaItem.id,
+          academicYear: state.selectedAcademicYear,
+          description: criteriaItem.title + " added via bulk upload demo.",
+          status: entryStatus,
+          remarks: entryStatus === workflowStatus.SUBMITTED ? "Pending teacher review." : "Auto-verified for demo data.",
+          marks: entryStatus === workflowStatus.VERIFIED ? autoMarks : null,
+          proof: "bulk_" + studentId + "_" + criteriaItem.id + ".pdf",
+          evaluatorVerified: false,
+          evidence: evidence,
+          timestamps: normalizeSubmissionTimestamps({
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            submittedAt: new Date().toISOString()
+          })
+        });
+        createdSubmissions += 1;
+      });
+    }
+
+    showToast("Bulk upload simulated: " + createdStudents + " students and " + createdSubmissions + " submissions added.", "success");
     form.reset();
+    renderPage();
     return;
   }
 
@@ -3464,6 +3755,43 @@ function handlePageSubmit(event) {
     });
     form.reset();
     showToast("Feedback submitted.", "success");
+    renderPage();
+    return;
+  }
+
+  if (form.id === "hod-student-feedback-form") {
+    event.preventDefault();
+    const department = getHodDepartment();
+    if (!department) {
+      showToast("No department assigned.", "warning");
+      return;
+    }
+    const formData = new FormData(form);
+    const className = String(formData.get("className") || "").trim();
+    const studentId = Number(formData.get("studentId"));
+    const note = String(formData.get("note") || "").trim();
+    if (!Number.isFinite(studentId) || !note) {
+      showToast("Select student and enter feedback.", "warning");
+      return;
+    }
+    const student = getStudentById(studentId);
+    if (!student) {
+      showToast("Student not found.", "warning");
+      return;
+    }
+
+    state.hodFeedbackEntries.push({
+      id: Date.now(),
+      department: department,
+      className: className || student.className,
+      studentId: studentId,
+      target: "student:" + studentId,
+      targetLabel: student.name + " (" + student.className + ")",
+      note: note,
+      createdAt: new Date().toISOString()
+    });
+    form.reset();
+    showToast("Feedback saved.", "success");
     renderPage();
     return;
   }
@@ -3663,6 +3991,14 @@ function updateListFilterState(target, filterKey, rawValue) {
     return;
   }
 
+  if (safeTarget === "hod-submissions") {
+    const viewState = state.listViews.hodSubmissions;
+    viewState[safeFilterKey] = nextValue;
+    viewState.currentPage = 1;
+    renderPage();
+    return;
+  }
+
   if (safeTarget === "iqac-departments") {
     const viewState = state.listViews.iqacDepartments;
     viewState[safeFilterKey] = nextValue;
@@ -3720,10 +4056,18 @@ function handleListPagination(button) {
     const viewState = state.listViews.evaluatorEvaluation;
     viewState.completedPage = applyPageChange(viewState.completedPage, action, pageNumber);
     refreshEvaluatorEvaluationSection();
+    return;
   }
 
   if (target === "hod-department-list") {
     const viewState = state.listViews.hodClasses;
+    viewState.currentPage = applyPageChange(viewState.currentPage, action, pageNumber);
+    renderPage();
+    return;
+  }
+
+  if (target === "hod-submissions-list") {
+    const viewState = state.listViews.hodSubmissions;
     viewState.currentPage = applyPageChange(viewState.currentPage, action, pageNumber);
     renderPage();
     return;
@@ -3737,6 +4081,16 @@ function handleListPagination(button) {
   }
 }
 
+function getTeacherAssignedClass() {
+  const currentUser = findUserById(state.currentUserId);
+  if (currentUser && String(currentUser.class || "").trim()) {
+    return String(currentUser.class).trim();
+  }
+
+  const fallbackClass = students[0] ? String(students[0].className || "").trim() : "";
+  return fallbackClass || "BSc CS A";
+}
+
 function runPageRenderHooks() {
   if (state.currentRole === "admin" &&
     state.activePage === "dashboard" &&
@@ -3746,9 +4100,26 @@ function runPageRenderHooks() {
   }
 }
 
-function submitStudentSubmission(form) {
+function isSubmissionWithinTimeWindow() {
   if (!state.submissionOpen) {
-    showToast("Submission is currently OFF. Contact admin.", "warning");
+    return { allowed: false, reason: "Submission is currently OFF. Contact admin." };
+  }
+  var startTime = state.submissionStartTime ? new Date(state.submissionStartTime) : null;
+  var endTime = state.submissionEndTime ? new Date(state.submissionEndTime) : null;
+  var now = new Date();
+  if (startTime && now < startTime) {
+    return { allowed: false, reason: "Submission window has not started yet. Opens on " + startTime.toLocaleString() + "." };
+  }
+  if (endTime && now > endTime) {
+    return { allowed: false, reason: "Submission window has closed. Deadline was " + endTime.toLocaleString() + "." };
+  }
+  return { allowed: true, reason: "" };
+}
+
+function submitStudentSubmission(form) {
+  var windowCheck = isSubmissionWithinTimeWindow();
+  if (!windowCheck.allowed) {
+    showToast(windowCheck.reason, "warning");
     return;
   }
 
@@ -3832,6 +4203,7 @@ function submitStudentSubmission(form) {
     state.editingSubmissionId = null;
     form.reset();
     showToast(targetStatus === workflowStatus.DRAFT ? "Draft updated." : "Submission re-submitted for verification.", "success");
+    persistState();
     renderPage();
     return;
   }
@@ -3869,6 +4241,7 @@ function submitStudentSubmission(form) {
 
   form.reset();
   showToast(targetStatus === workflowStatus.DRAFT ? "Draft saved." : "Submission sent for verification.", "success");
+  persistState();
   renderPage();
 }
 
@@ -4526,7 +4899,8 @@ function getAdminSettingsContext() {
     showToast: showToast,
     openConfirmModal: openConfirmModal,
     renderTopbar: renderTopbar,
-    renderPage: renderPage
+    renderPage: renderPage,
+    persistState: persistState
   };
 }
 
@@ -4871,7 +5245,10 @@ function resetDemoData() {
   state.academicYearState = createAcademicYearState(academicYears, state.activeAcademicYear);
   state.systemMode = "setup";
   state.submissionOpen = true;
+  state.submissionStartTime = "";
+  state.submissionEndTime = "";
   state.evaluationOpen = true;
+  localStorage.removeItem("bc_persistent_state");
 
   state.criteriaLastUpdatedAt = null;
   state.recentActivity = [];
@@ -4894,6 +5271,7 @@ function resetDemoData() {
     teacherVerification: createDefaultListViewState(),
     evaluatorEvaluation: createDefaultEvaluatorListViewState(),
     hodClasses: createDefaultListViewState(),
+    hodSubmissions: createDefaultListViewState(),
     iqacDepartments: createDefaultListViewState()
   };
   state.adminUserListView = null;
@@ -4936,7 +5314,7 @@ function createInitialUsers() {
       email: "meera.thomas@college.edu",
       role: "teacher",
       department: "Computer Science",
-      class: "",
+      class: "BSc CS A",
       isApproved: true,
       status: "Active",
       linkedStudentId: null

@@ -24,3 +24,8 @@
 ## Example
 - Internship → 5 marks
 - NPTEL → 10 marks
+
+tojo.
+sijo
+santhana
+riya

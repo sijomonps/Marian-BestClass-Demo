@@ -152,20 +152,20 @@ window.seedStudents = [
     "Chauhan", "Malhotra", "Jain", "Mukherjee"
   ];
   const classPlan = [
-    { className: "BSc CS A", count: 18 },
-    { className: "BSc CS B", count: 16 },
-    { className: "BCA A", count: 14 },
-    { className: "BCom A", count: 16 },
-    { className: "BCom B", count: 16 },
-    { className: "BCom C", count: 14 },
-    { className: "BA English A", count: 14 },
-    { className: "BA English B", count: 14 },
-    { className: "BSc Math A", count: 14 },
-    { className: "BSc Math B", count: 12 },
-    { className: "BSc Physics A", count: 12 },
-    { className: "BBA A", count: 14 },
-    { className: "BBA B", count: 12 },
-    { className: "BA Economics A", count: 12 }
+    { className: "BSc CS A", count: 36 },
+    { className: "BSc CS B", count: 34 },
+    { className: "BCA A", count: 32 },
+    { className: "BCom A", count: 34 },
+    { className: "BCom B", count: 34 },
+    { className: "BCom C", count: 32 },
+    { className: "BA English A", count: 32 },
+    { className: "BA English B", count: 32 },
+    { className: "BSc Math A", count: 32 },
+    { className: "BSc Math B", count: 30 },
+    { className: "BSc Physics A", count: 30 },
+    { className: "BBA A", count: 32 },
+    { className: "BBA B", count: 30 },
+    { className: "BA Economics A", count: 30 }
   ];
 
   let nextId = window.seedStudents.reduce((maxId, student) => Math.max(maxId, student.id), 0) + 1;
